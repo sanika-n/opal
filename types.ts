@@ -50,6 +50,7 @@ export interface GraphNode {
     vx: number;
     vy: number;
     embedding?: number[];
+    hidden?: boolean;
 }
 
 export interface GraphLink {

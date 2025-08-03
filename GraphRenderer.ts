@@ -73,6 +73,7 @@ export class GraphRenderer {
             .append('path')
             .attr('fill', 'var(--text-muted)')
             .attr('d', 'M0,-5L10,0L0,5');
+    
     }
 
     private setupSimulation() {
@@ -199,6 +200,72 @@ export class GraphRenderer {
             this.nodeElements
                 .attr('transform', d => `translate(${d.x},${d.y})`);
         }
+    }
+
+    // Add these methods to GraphRenderer class:
+
+    applyNodeVisibility() {
+        // Update node visibility
+        this.nodeElements
+            .style('display', d => d.hidden ? 'none' : 'block');
+        
+        // Update link visibility
+        this.linkElements
+            .style('display', d => {
+                const source = typeof d.source === 'string' ? d.source : (d.source as GraphNode).id;
+                const target = typeof d.target === 'string' ? d.target : (d.target as GraphNode).id;
+                const sourceNode = this.nodes.find(n => n.id === source);
+                const targetNode = this.nodes.find(n => n.id === target);
+                return (sourceNode?.hidden || targetNode?.hidden) ? 'none' : 'block';
+            });
+    }
+
+    toggleArrows(showArrows: boolean) {
+        this.linkElements
+            .attr('marker-end', showArrows ? 'url(#arrow)' : null);
+    }
+
+    setTextFadeThreshold(threshold: number) {
+        // Implement text fading based on zoom level
+        const svgNode = this.svg.node();
+        if (!svgNode) return;
+        const currentZoom = d3.zoomTransform(svgNode).k;
+        this.nodeElements.selectAll('text')
+            .style('opacity', currentZoom < threshold ? 0 : 1);
+    }
+
+    updateNodeSize(size: number) {
+        this.nodeElements.selectAll('circle')
+            .attr('r', size);
+    }
+
+    updateLinkThickness(thickness: number) {
+        this.linkElements
+            .attr('stroke-width', d => d.thickness || thickness);
+    }
+
+    updateLinkForce(strength: number) {
+        this.simulation.force('link', d3.forceLink<GraphNode, GraphLink>(this.links)
+            .id(d => d.id)
+            .distance(this.plugin.settings.linkDistance)
+            .strength(strength));
+        this.simulation.alpha(0.3).restart();
+    }
+
+    updateForces() {
+        const width = this.container.clientWidth || 800;
+        const height = this.container.clientHeight || 600;
+        
+        this.simulation
+            .force('charge', d3.forceManyBody()
+                .strength(-this.plugin.settings.repulsionForce))
+            .force('center', d3.forceCenter(width / 2, height / 2)
+                .strength(this.plugin.settings.centerForce))
+            .force('link', d3.forceLink<GraphNode, GraphLink>(this.links)
+                .id(d => d.id)
+                .distance(this.plugin.settings.linkDistance));
+        
+        this.simulation.alpha(0.3).restart();
     }
 
     toggleAnimation(animate: boolean) {

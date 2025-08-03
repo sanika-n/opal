@@ -7,6 +7,15 @@ export class GraphControls {
     private plugin: BetterGraphPlugin;
     private view: BetterGraphView;
     private isAnimating: boolean = true;
+    
+    // Filter states
+    private filters = {
+        showTags: false,
+        showAttachments: false,
+        existingFilesOnly: true,
+        showOrphans: true,
+        searchQuery: ''
+    };
 
     constructor(container: HTMLElement, plugin: BetterGraphPlugin, view: BetterGraphView) {
         this.container = container;
@@ -31,12 +40,32 @@ export class GraphControls {
         });
         const searchIcon = searchContainer.createDiv('search-icon');
         setIcon(searchIcon, 'search');
+        
+        searchInput.addEventListener('input', (e) => {
+            this.filters.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+            this.applyFilters();
+        });
 
-        // Toggles
-        this.createToggle(filtersSection, 'Tags', false);
-        this.createToggle(filtersSection, 'Attachments', false);
-        this.createToggle(filtersSection, 'Existing files only', false);
-        this.createToggle(filtersSection, 'Orphans', true);
+        // Toggles with actual functionality
+        this.createToggle(filtersSection, 'Tags', this.filters.showTags, (enabled) => {
+            this.filters.showTags = enabled;
+            this.applyFilters();
+        });
+        
+        this.createToggle(filtersSection, 'Attachments', this.filters.showAttachments, (enabled) => {
+            this.filters.showAttachments = enabled;
+            this.applyFilters();
+        });
+        
+        this.createToggle(filtersSection, 'Existing files only', this.filters.existingFilesOnly, (enabled) => {
+            this.filters.existingFilesOnly = enabled;
+            this.applyFilters();
+        });
+        
+        this.createToggle(filtersSection, 'Orphans', this.filters.showOrphans, (enabled) => {
+            this.filters.showOrphans = enabled;
+            this.applyFilters();
+        });
 
         // Groups section
         const groupsSection = this.createSection('Groups');
@@ -48,23 +77,38 @@ export class GraphControls {
         // Display section
         const displaySection = this.createSection('Display');
         
-        this.createToggle(displaySection, 'Arrows', false);
+        this.createToggle(displaySection, 'Arrows', false, (enabled) => {
+            // Toggle arrow markers on links
+            if (this.view.renderer) {
+                this.view.renderer.toggleArrows(enabled);
+            }
+        });
         
-        this.createSlider(displaySection, 'Text fade threshold', 0, 1, 0.1, 0.5);
+        this.createSlider(displaySection, 'Text fade threshold', 0, 1, 0.1, 0.5, (value) => {
+            if (this.view.renderer) {
+                this.view.renderer.setTextFadeThreshold(value);
+            }
+        });
+        
         this.createSlider(displaySection, 'Node size', 
             5, 30, 1, this.plugin.settings.nodeSize,
             (value) => {
                 this.plugin.settings.nodeSize = value;
                 this.plugin.saveSettings();
-                this.view.refresh();
+                if (this.view.renderer) {
+                    this.view.renderer.updateNodeSize(value);
+                }
             }
         );
+        
         this.createSlider(displaySection, 'Link thickness',
             0.5, 5, 0.5, this.plugin.settings.defaultLinkThickness,
             (value) => {
                 this.plugin.settings.defaultLinkThickness = value;
                 this.plugin.saveSettings();
-                this.view.refresh();
+                if (this.view.renderer) {
+                    this.view.renderer.updateLinkThickness(value);
+                }
             }
         );
 
@@ -90,7 +134,9 @@ export class GraphControls {
             (value) => {
                 this.plugin.settings.centerForce = value;
                 this.plugin.saveSettings();
-                this.view.refresh();
+                if (this.view.renderer) {
+                    this.view.renderer.updateForces();
+                }
             }
         );
         
@@ -99,26 +145,121 @@ export class GraphControls {
             (value) => {
                 this.plugin.settings.repulsionForce = value;
                 this.plugin.saveSettings();
-                this.view.refresh();
+                if (this.view.renderer) {
+                    this.view.renderer.updateForces();
+                }
             }
         );
         
         this.createSlider(forcesSection, 'Link force',
-            0, 1, 0.05, 0.5
-        );
+            0, 1, 0.05, 0.5, (value) => {
+                if (this.view.renderer) {
+                    this.view.renderer.updateLinkForce(value);
+                }
+            });
         
         this.createSlider(forcesSection, 'Link distance',
             20, 200, 10, this.plugin.settings.linkDistance,
             (value) => {
                 this.plugin.settings.linkDistance = value;
                 this.plugin.saveSettings();
-                this.view.refresh();
+                if (this.view.renderer) {
+                    this.view.renderer.updateForces();
+                }
             }
         );
 
-        // Add file count
-        const fileCount = forcesSection.createDiv('file-count');
-        fileCount.setText(`${this.view.nodes.length} files, ${this.view.links.length} links`);
+        // Update file count
+        this.updateFileCount();
+    }
+
+    private updateFileCount() {
+        const fileCountEl = this.container.querySelector('.file-count');
+        if (fileCountEl) {
+            const visibleNodes = this.view.nodes.filter(node => !node.hidden);
+            const visibleLinks = this.view.links.filter(link => {
+                const source = typeof link.source === 'string' ? link.source : (link.source as any).id;
+                const target = typeof link.target === 'string' ? link.target : (link.target as any).id;
+                const sourceNode = this.view.nodes.find(n => n.id === source);
+                const targetNode = this.view.nodes.find(n => n.id === target);
+                return sourceNode && targetNode && !sourceNode.hidden && !targetNode.hidden;
+            });
+            fileCountEl.setText(`${visibleNodes.length} files, ${visibleLinks.length} links`);
+        } else {
+            // Create file count if it doesn't exist
+            const forcesSection = this.container.querySelector('.control-section:last-child .section-content');
+            if (forcesSection) {
+                const fileCount = forcesSection.createDiv('file-count');
+                const visibleNodes = this.view.nodes.filter(node => !node.hidden);
+                const visibleLinks = this.view.links.filter(link => {
+                    const source = typeof link.source === 'string' ? link.source : (link.source as any).id;
+                    const target = typeof link.target === 'string' ? link.target : (link.target as any).id;
+                    const sourceNode = this.view.nodes.find(n => n.id === source);
+                    const targetNode = this.view.nodes.find(n => n.id === target);
+                    return sourceNode && targetNode && !sourceNode.hidden && !targetNode.hidden;
+                });
+                fileCount.setText(`${visibleNodes.length} files, ${visibleLinks.length} links`);
+            }
+        }
+    }
+
+    private applyFilters() {
+        // Get all files to check orphan status
+        const linkedFiles = new Set<string>();
+        
+        // Collect all linked files
+        this.view.links.forEach(link => {
+            const source = typeof link.source === 'string' ? link.source : (link.source as any).id;
+            const target = typeof link.target === 'string' ? link.target : (link.target as any).id;
+            linkedFiles.add(source);
+            linkedFiles.add(target);
+        });
+
+        // Apply filters to nodes
+        this.view.nodes.forEach(node => {
+            let shouldShow = true;
+
+            // Search filter
+            if (this.filters.searchQuery && !node.name.toLowerCase().includes(this.filters.searchQuery)) {
+                shouldShow = false;
+            }
+
+            // File type filters
+            const file = this.plugin.app.vault.getAbstractFileByPath(node.path);
+            if (file && 'extension' in file) {
+                const extension = file.extension;
+                
+                // Check if it's a tag
+                if (node.path.startsWith('#')) {
+                    shouldShow = shouldShow && this.filters.showTags;
+                }
+                // Check if it's an attachment
+                else if (extension && ['png', 'jpg', 'jpeg', 'gif', 'svg', 'pdf', 'mp4', 'webm', 'mp3', 'wav'].includes(extension.toString())) {
+                    shouldShow = shouldShow && this.filters.showAttachments;
+                }
+                // Regular markdown files
+                else if (extension === 'md') {
+                    // Check orphan status
+                    const isOrphan = !linkedFiles.has(node.id);
+                    if (isOrphan && !this.filters.showOrphans) {
+                        shouldShow = false;
+                    }
+                }
+            } else if (this.filters.existingFilesOnly) {
+                // File doesn't exist
+                shouldShow = false;
+            }
+
+            node.hidden = !shouldShow;
+        });
+
+        // Update the graph visualization
+        if (this.view.renderer) {
+            this.view.renderer.applyNodeVisibility();
+        }
+
+        // Update file count
+        this.updateFileCount();
     }
 
     private createSection(title: string, expanded: boolean = false): HTMLElement {
@@ -142,14 +283,18 @@ export class GraphControls {
         return content;
     }
 
-    private createToggle(parent: HTMLElement, label: string, checked: boolean): HTMLElement {
+    private createToggle(parent: HTMLElement, label: string, checked: boolean, onChange?: (enabled: boolean) => void): HTMLElement {
         const container = parent.createDiv('toggle-container');
         container.createEl('label', { text: label });
         const toggle = container.createDiv('toggle');
         toggle.classList.toggle('is-enabled', checked);
         
         toggle.addEventListener('click', () => {
-            toggle.classList.toggle('is-enabled');
+            const isEnabled = !toggle.classList.contains('is-enabled');
+            toggle.classList.toggle('is-enabled', isEnabled);
+            if (onChange) {
+                onChange(isEnabled);
+            }
         });
         
         return container;
@@ -175,12 +320,12 @@ export class GraphControls {
         slider.value = value.toString();
         
         const valueDisplay = container.createDiv('slider-value');
-        valueDisplay.setText(value.toString());
+        valueDisplay.setText(value.toFixed(step < 1 ? 2 : 0));
         
         if (onChange) {
             slider.addEventListener('input', (e) => {
                 const newValue = parseFloat((e.target as HTMLInputElement).value);
-                valueDisplay.setText(newValue.toString());
+                valueDisplay.setText(newValue.toFixed(step < 1 ? 2 : 0));
                 onChange(newValue);
             });
         }

@@ -84,35 +84,96 @@ export class BetterGraphView extends ItemView {
         this.register(() => window.removeEventListener('resize', resizeHandler));
     }
     
-    async loadGraphData() {
-        const files = this.app.vault.getMarkdownFiles();
-        const nodeMap = new Map<string, GraphNode>();
+async loadGraphData() {
+    const files = this.app.vault.getMarkdownFiles();
+    const nodeMap = new Map<string, GraphNode>();
+    const tagNodes = new Map<string, GraphNode>();
+    
+    // Create nodes for files
+    for (const file of files) {
+        const embedding = await this.plugin.getEmbeddingLocally(file.path);
+        nodeMap.set(file.path, {
+            id: file.path,
+            name: file.basename,
+            path: file.path,
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            embedding: embedding || undefined,
+            type: 'file'
+        });
+    }
+    
+    // Create nodes for tags if enabled
+    if (!this.filters || this.filters.showTags) {
+        const allTags = new Set<string>();
         
-        // Create nodes
+        // Collect all tags from files
         for (const file of files) {
-            const embedding = await this.plugin.getEmbeddingLocally(file.path);
-            nodeMap.set(file.path, {
-                id: file.path,
-                name: file.basename,
-                path: file.path,
+            const cache = this.app.metadataCache.getFileCache(file);
+            if (cache?.tags) {
+                cache.tags.forEach(tag => {
+                    allTags.add(tag.tag);
+                });
+            }
+        }
+        
+        // Create tag nodes
+        allTags.forEach(tag => {
+            tagNodes.set(tag, {
+                id: tag,
+                name: tag,
+                path: tag,
                 x: 0,
                 y: 0,
                 vx: 0,
                 vy: 0,
-                embedding: embedding || undefined
+                type: 'tag'
+            });
+        });
+    }
+    
+    // Combine all nodes
+    this.nodes = [...Array.from(nodeMap.values()), ...Array.from(tagNodes.values())];
+    
+    // Create links
+    this.links = [];
+    
+    // Create file-to-file links
+    if (this.plugin.settings.useEmbeddings && this.nodes.some(n => n.embedding)) {
+        await this.createEmbeddingBasedLinks(nodeMap);
+    } else {
+        this.createTraditionalLinks(files, nodeMap);
+    }
+    
+    // Create tag links
+    if (!this.filters || this.filters.showTags) {
+        this.createTagLinks(files, nodeMap, tagNodes);
+    }
+}
+
+createTagLinks(files: TFile[], nodeMap: Map<string, GraphNode>, tagNodes: Map<string, GraphNode>) {
+    files.forEach(file => {
+        const cache = this.app.metadataCache.getFileCache(file);
+        if (cache?.tags) {
+            cache.tags.forEach(tag => {
+                const tagNode = tagNodes.get(tag.tag);
+                const fileNode = nodeMap.get(file.path);
+                if (tagNode && fileNode) {
+                    const linkId = `${file.path}->${tag.tag}`;
+                    this.links.push({
+                        source: file.path,
+                        target: tag.tag,
+                        id: linkId,
+                        type: 'tag-link',
+                        thickness: this.plugin.settings.defaultLinkThickness * 0.5
+                    });
+                }
             });
         }
-        
-        this.nodes = Array.from(nodeMap.values());
-        
-        // Create links
-        this.links = [];
-        if (this.plugin.settings.useEmbeddings && this.nodes.some(n => n.embedding)) {
-            await this.createEmbeddingBasedLinks(nodeMap);
-        } else {
-            this.createTraditionalLinks(files, nodeMap);
-        }
-    }
+    });
+}
 
     async createEmbeddingBasedLinks(nodeMap: Map<string, GraphNode>) {
         const nodesArray = Array.from(nodeMap.values());
