@@ -1,8 +1,8 @@
 import { ItemView, WorkspaceLeaf, TFile } from 'obsidian';
-import type BetterGraphPlugin from '../main';
+import type BetterGraphPlugin from './main';
 import { GraphRenderer } from './GraphRenderer';
 import { GraphControls } from './GraphControls';
-import { GraphNode, GraphLink } from '../types';
+import { GraphNode, GraphLink } from './types';
 
 export const VIEW_TYPE_GRAPH = "better-graph-view";
 
@@ -13,7 +13,6 @@ export class BetterGraphView extends ItemView {
     nodes: GraphNode[] = [];
     links: GraphLink[] = [];
     container: HTMLElement;
-    canvas: HTMLCanvasElement;
 
     constructor(leaf: WorkspaceLeaf, plugin: BetterGraphPlugin) {
         super(leaf);
@@ -39,24 +38,23 @@ export class BetterGraphView extends ItemView {
 
         // Create main container
         this.container = contentEl.createDiv('graph-main-container');
-
-        // Create header with controls
+        
+        // Create header
         const header = this.container.createDiv('graph-header');
         const title = header.createDiv('graph-title');
         title.createEl('h2', { text: 'Graph View' });
 
-        // Add settings button
         const settingsBtn = header.createDiv('graph-settings-btn');
         settingsBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6m9-9h-6m-6 0H3m16.66-4.66l-4.24 4.24M7.58 7.58L3.34 3.34m16.66 16.66l-4.24-4.24M7.58 16.42l-4.24 4.24"></path></svg>`;
-        
-        // Create canvas container
-        const canvasContainer = this.container.createDiv('graph-canvas-container');
-        this.canvas = canvasContainer.createEl('canvas', {
-            cls: 'graph-canvas'
-        });
+
+        // Create content wrapper
+        const contentWrapper = this.container.createDiv('graph-content-wrapper');
+
+        // Create graph container
+        const graphContainer = contentWrapper.createDiv('graph-container');
 
         // Create controls panel (hidden by default)
-        const controlsPanel = this.container.createDiv('graph-controls-panel');
+        const controlsPanel = contentWrapper.createDiv('graph-controls-panel');
         controlsPanel.style.display = 'none';
 
         // Initialize controls
@@ -69,8 +67,8 @@ export class BetterGraphView extends ItemView {
             settingsBtn.classList.toggle('active', !isVisible);
         });
 
-        // Initialize renderer
-        this.renderer = new GraphRenderer(this.canvas, this.plugin);
+        // Initialize renderer with the graph container
+        this.renderer = new GraphRenderer(graphContainer, this.plugin, this);
 
         // Load graph data
         await this.loadGraphData();
@@ -80,23 +78,12 @@ export class BetterGraphView extends ItemView {
 
         // Handle window resize
         const resizeHandler = () => {
-            this.resizeCanvas();
+            this.renderer.resize();
         };
         window.addEventListener('resize', resizeHandler);
-        this.registerEvent(() => window.removeEventListener('resize', resizeHandler));
-
-        this.resizeCanvas();
+        this.register(() => window.removeEventListener('resize', resizeHandler));
     }
-
-    resizeCanvas() {
-        const container = this.canvas.parentElement;
-        if (container) {
-            this.canvas.width = container.clientWidth;
-            this.canvas.height = container.clientHeight;
-            this.renderer.resize(this.canvas.width, this.canvas.height);
-        }
-    }
-
+    
     async loadGraphData() {
         const files = this.app.vault.getMarkdownFiles();
         const nodeMap = new Map<string, GraphNode>();
@@ -120,7 +107,7 @@ export class BetterGraphView extends ItemView {
         
         // Create links
         this.links = [];
-        if (this.plugin.settings.useEmbeddings) {
+        if (this.plugin.settings.useEmbeddings && this.nodes.some(n => n.embedding)) {
             await this.createEmbeddingBasedLinks(nodeMap);
         } else {
             this.createTraditionalLinks(files, nodeMap);
@@ -191,6 +178,8 @@ export class BetterGraphView extends ItemView {
     }
 
     async onClose() {
-        this.renderer.destroy();
+        if (this.renderer) {
+            this.renderer.destroy();
+        }
     }
 }
