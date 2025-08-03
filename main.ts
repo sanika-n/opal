@@ -349,6 +349,7 @@ class BetterGraphModal extends Modal {
             nodeMap.set(file.path, {
                 id: file.path,
                 name: file.basename,
+                path: file.path,
                 x: Math.random() * 700 + 50,
                 y: Math.random() * 500 + 50,
                 vx: 0,

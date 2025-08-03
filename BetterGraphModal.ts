@@ -101,7 +101,11 @@ export class BetterGraphModal extends Modal {
             nodeMap.set(file.path, {
                 id: file.path,
                 name: file.basename,
-                path: file.path
+                path: file.path,
+                x: Math.random() * 700 + 50,
+                y: Math.random() * 500 + 50,
+                vx: 0,
+                vy: 0
             });
         });
 
@@ -249,10 +253,10 @@ export class BetterGraphModal extends Modal {
         // Update positions on tick
         this.simulation.on('tick', () => {
             link
-                .attr('x1', d => (d.source as GraphNode).x!)
-                .attr('y1', d => (d.source as GraphNode).y!)
-                .attr('x2', d => (d.target as GraphNode).x!)
-                .attr('y2', d => (d.target as GraphNode).y!);
+                .attr('x1', d => ((d.source as unknown) as GraphNode).x!)
+                .attr('y1', d => ((d.source as unknown) as GraphNode).y!)
+                .attr('x2', d => ((d.target as unknown) as GraphNode).x!)
+                .attr('y2', d => ((d.target as unknown) as GraphNode).y!);
 
             node.attr('transform', d => `translate(${d.x},${d.y})`);
         });
@@ -262,17 +266,17 @@ export class BetterGraphModal extends Modal {
         return d3.drag<SVGGElement, GraphNode>()
             .on('start', (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0.3).restart();
-                d.fx = d.x;
-                d.fy = d.y;
+                d.vx = d.x;
+                d.vy = d.y;
             })
             .on('drag', (event, d) => {
-                d.fx = event.x;
-                d.fy = event.y;
+                d.vx = event.x;
+                d.vy = event.y;
             })
             .on('end', (event, d) => {
                 if (!event.active) this.simulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
+                d.vx = 0;
+                d.vy = 0;
             });
     }
 

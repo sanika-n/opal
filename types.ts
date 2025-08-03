@@ -11,6 +11,7 @@ export interface BetterGraphSettings {
     linkDistance: number;
     minLinkThickness: number;
     maxLinkThickness: number;
+    centerForce: number;
     
     // API settings
     openaiApiKey: string;
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: BetterGraphSettings = {
     linkThickness: {},
     nodeSize: 8,
     repulsionForce: 300,
+    centerForce: 0.3,
     linkDistance: 100,
     minLinkThickness: 0.5,
     maxLinkThickness: 8,
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: BetterGraphSettings = {
 export interface GraphNode {
     id: string;
     name: string;
+    path: string;
     x: number;
     y: number;
     vx: number;
