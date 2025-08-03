@@ -202,6 +202,18 @@ export class BetterGraphSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
+          .setName('Word Limit for Embeddings')
+          .setDesc('Number of words to include from document body (in addition to all headings)')
+          .addSlider(slider => slider
+              .setLimits(50, 500, 50)
+              .setValue(this.plugin.settings.embeddingWordLimit)
+              .setDynamicTooltip()
+              .onChange(async (value) => {
+                  this.plugin.settings.embeddingWordLimit = value;
+                  await this.plugin.saveSettings();
+              }));
+
+        new Setting(containerEl)
             .setName('Clear All Embeddings')
             .setDesc('Remove all stored embeddings')
             .addButton(button => button
