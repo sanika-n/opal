@@ -1,134 +1,217 @@
-/*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
-*/
-
-/* styles.css */
-.better-graph-view {
+/* Better Graph View Styles */
+.better-graph-view-container {
     height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
-    background-color: var(--background-primary);
+    background: var(--background-primary);
 }
 
-.graph-container {
+.graph-main-container {
     flex: 1;
+    display: flex;
+    flex-direction: column;
     position: relative;
     overflow: hidden;
-    background-color: var(--background-secondary);
-    border-radius: 5px;
-    margin: 10px;
 }
 
-.graph-svg {
-    width: 100%;
-    height: 100%;
-    cursor: grab;
-}
-
-.graph-svg:active {
-    cursor: grabbing;
-}
-
-.graph-controls {
-    padding: 10px;
-    background-color: var(--background-primary);
-    border-bottom: 1px solid var(--background-modifier-border);
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.control-panel {
+/* Header */
+.graph-header {
     display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.control-panel button {
-    padding: 5px 12px;
-    border-radius: 4px;
-    font-size: 13px;
-}
-
-.thickness-panel {
-    background-color: var(--background-secondary);
-    padding: 10px;
-    border-radius: 5px;
-}
-
-.thickness-panel h3 {
-    margin: 0 0 10px 0;
-    font-size: 14px;
+.graph-title h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
     color: var(--text-normal);
 }
 
-.thickness-control {
+.graph-settings-btn {
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
-    margin-bottom: 8px;
-    gap: 10px;
-}
-
-.thickness-label {
-    flex: 1;
-    font-size: 12px;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
     color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-.thickness-slider {
-    width: 100px;
+.graph-settings-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.graph-settings-btn.active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.graph-settings-btn svg {
+    transition: transform 0.3s;
+}
+
+.graph-settings-btn.active svg {
+    transform: rotate(90deg);
+}
+
+/* Canvas Container */
+.graph-canvas-container {
+    flex: 1;
+    position: relative;
+    background: var(--background-primary);
+}
+
+.graph-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Controls Panel */
+.graph-controls-panel {
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    width: 320px;
+    max-height: calc(100% - 80px);
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+    z-index: 100;
+}
+
+.graph-control-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.graph-control-section:last-child {
+    border-bottom: none;
+}
+
+.graph-control-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-normal);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.graph-control-item {
+    margin-bottom: 16px;
+}
+
+.graph-control-item:last-child {
+    margin-bottom: 0;
+}
+
+.graph-control-item label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.graph-control-item input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.slider-container input[type="range"] {
+    flex: 1;
     height: 20px;
 }
 
-.thickness-value {
-    width: 30px;
+.slider-value {
+    min-width: 40px;
     text-align: right;
     font-size: 12px;
-    color: var(--text-muted);
+    font-weight: 600;
+    color: var(--text-accent);
 }
 
-.graph-link {
+.graph-control-btn {
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    transition: stroke-width 0.2s ease;
+    transition: all 0.2s;
+    margin-top: 8px;
 }
 
-.graph-link:hover {
-    stroke-opacity: 1 !important;
-    stroke: var(--text-accent) !important;
+.graph-control-btn.mod-cta {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
 }
 
-.graph-node {
-    cursor: pointer;
+.graph-control-btn.mod-cta:hover {
+    background: var(--interactive-accent-hover);
 }
 
-.node-label {
-    pointer-events: none;
-    user-select: none;
-    filter: drop-shadow(0 0 2px var(--background-primary));
+.graph-control-btn.mod-cta:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
-.graph-node:hover .node-label {
-    fill: var(--text-accent);
-    font-weight: bold;
+.graph-control-btn.mod-warning {
+    background: var(--background-modifier-error);
+    color: var(--text-error);
 }
 
-/* Match Obsidian's modal style */
-.modal.better-graph-view {
-    width: 90vw;
-    height: 80vh;
-    max-width: 1200px;
+.graph-control-btn.mod-warning:hover {
+    background: var(--background-modifier-error-hover);
 }
 
-.modal.better-graph-view .modal-content {
-    padding: 0;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
+/* Scrollbar styling */
+.graph-controls-panel::-webkit-scrollbar {
+    width: 8px;
+}
+
+.graph-controls-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.graph-controls-panel::-webkit-scrollbar-thumb {
+    background: var(--background-modifier-border);
+    border-radius: 4px;
+}
+
+.graph-controls-panel::-webkit-scrollbar-thumb:hover {
+    background: var(--background-modifier-border-hover);
+}
+
+/* Dark mode adjustments */
+.theme-dark .graph-canvas-container {
+    background: #0a0a0a;
+}
+
+.theme-dark .graph-controls-panel {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .graph-controls-panel {
+        width: 280px;
+        right: 10px;
+    }
 }
