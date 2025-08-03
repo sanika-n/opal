@@ -14,6 +14,14 @@ export class BetterGraphView extends ItemView {
     links: GraphLink[] = [];
     container: HTMLElement;
 
+    filters = {
+        showTags: false,
+        showAttachments: false,
+        existingFilesOnly: true,
+        showOrphans: true,
+        searchQuery: ''
+    };
+
     constructor(leaf: WorkspaceLeaf, plugin: BetterGraphPlugin) {
         super(leaf);
         this.plugin = plugin;

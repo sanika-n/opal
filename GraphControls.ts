@@ -49,6 +49,7 @@ export class GraphControls {
         // Toggles with actual functionality
         this.createToggle(filtersSection, 'Tags', this.filters.showTags, (enabled) => {
             this.filters.showTags = enabled;
+            this.view.filters = this.filters; // Pass filters to view
             this.applyFilters();
         });
         
