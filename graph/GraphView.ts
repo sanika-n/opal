@@ -1,8 +1,8 @@
 import { ItemView, WorkspaceLeaf, TFile } from 'obsidian';
-import type BetterGraphPlugin from './main';
-import { GraphRenderer } from './graph/GraphRenderer';
-import { GraphControls } from './graph/GraphControls';
-import { GraphNode, GraphLink } from './types';
+import type BetterGraphPlugin from '../main';
+import { GraphRenderer } from './GraphRenderer';
+import { GraphControls } from './GraphControls';
+import { GraphNode, GraphLink } from '../types';
 
 export const VIEW_TYPE_GRAPH = "better-graph-view";
 

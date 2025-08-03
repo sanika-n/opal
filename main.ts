@@ -1,5 +1,5 @@
 import { Notice, Plugin } from 'obsidian';
-import { BetterGraphView, VIEW_TYPE_GRAPH } from './GraphView';
+import { BetterGraphView, VIEW_TYPE_GRAPH } from './graph/GraphView';
 import { BetterGraphSettingTab } from './BetterGraphSettings';
 import { BetterGraphSettings, DEFAULT_SETTINGS } from './types';
 import { EmbeddingService } from './EmbeddingService';

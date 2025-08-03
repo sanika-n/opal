@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
 import type BetterGraphPlugin from '../main';
-import type { BetterGraphView } from '../GraphView';
+import type { BetterGraphView } from './GraphView';
 
 export class GraphControls {
     private container: HTMLElement;
