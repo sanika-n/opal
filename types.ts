@@ -12,6 +12,7 @@ export interface BetterGraphSettings {
     // Embedding Settings
     useEmbeddings: boolean;
     similarityThreshold: number;
+    embeddingWordLimit: number;
     
     // Graph Display
     nodeSize: number;
@@ -36,12 +37,13 @@ export const DEFAULT_SETTINGS: BetterGraphSettings = {
     // Embedding Settings
     useEmbeddings: false,
     similarityThreshold: 0.7,
+    embeddingWordLimit: 100,
     
-    // Graph Display
-    nodeSize: 10,
-    linkDistance: 100,
-    repulsionForce: 300,
-    centerForce: 0.3,
+    // Graph Display - Updated physics values
+    nodeSize: 12,
+    linkDistance: 80,      // Reduced from 100
+    repulsionForce: 500,   // Increased from 300
+    centerForce: 0.1,      // Reduced from 0.3
     
     // Link Appearance
     defaultLinkThickness: 2,
@@ -50,14 +52,16 @@ export const DEFAULT_SETTINGS: BetterGraphSettings = {
     linkThickness: {}
 };
 
-export interface GraphNode {
+export interface GraphNode extends d3.SimulationNodeDatum {
     id: string;
     name: string;
     path: string;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
+    x?: number;
+    y?: number;
+    vx?: number;
+    vy?: number;
+    fx?: number | null;  // Fixed x position
+    fy?: number | null;  // Fixed y position
     embedding?: number[];
     hidden?: boolean;
     type?: 'file' | 'tag';

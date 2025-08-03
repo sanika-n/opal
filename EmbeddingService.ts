@@ -108,17 +108,60 @@ export class EmbeddingService {
         return dotProduct / (magnitude1 * magnitude2);
     }
 
+    extractHeadingsAndFirstWords(content: string, wordLimit: number = 100): string {
+        // Extract all headings
+        const headingRegex = /^#{1,6}\s+(.+)$/gm;
+        const headings: string[] = [];
+        let match;
+        
+        while ((match = headingRegex.exec(content)) !== null) {
+            headings.push(match[1].trim());
+        }
+
+        // Remove frontmatter
+        const contentWithoutFrontmatter = content.replace(/^---[\s\S]*?---\n?/m, '');
+        
+        // Remove headings from content to get body text
+        const bodyText = contentWithoutFrontmatter
+            .replace(/^#{1,6}\s+.*$/gm, '') // Remove headings
+            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+            .replace(/\[.*?\]\(.*?\)/g, '') // Remove links
+            .trim();
+
+        // Get first N words from body text
+        const words = bodyText.split(/\s+/).filter(word => word.length > 0);
+        const firstWords = words.slice(0, wordLimit).join(' ');
+
+        // Combine headings and first words
+        const headingText = headings.join(' | ');
+        const combinedText = headingText ? `${headingText}\n\n${firstWords}` : firstWords;
+
+        return combinedText.trim();
+    }
+
     cleanTextForEmbedding(content: string): string {
-        // Remove markdown syntax and clean up text
-        return content
-            .replace(/#{1,6}\s+/g, '') // Remove headers
+        // Extract headings and first 100 words instead of full content
+        const extractedText = this.extractHeadingsAndFirstWords(content);
+        
+        // Clean the extracted text
+        return extractedText
             .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
             .replace(/\*(.*?)\*/g, '$1') // Remove italic
             .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links, keep text
-            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
             .replace(/`(.*?)`/g, '$1') // Remove inline code
-            .replace(/---[\s\S]*?---/g, '') // Remove frontmatter
             .replace(/\n{3,}/g, '\n\n') // Normalize line breaks
             .trim();
+    }
+
+    // Optional: Method to get estimated token count (rough approximation)
+    estimateTokenCount(text: string): number {
+        // Rough estimation: 1 token ≈ 4 characters for English text
+        return Math.ceil(text.length / 4);
+    }
+
+    // Optional: Method to check if text is within token limits
+    isWithinTokenLimit(text: string, maxTokens: number = 8191): boolean {
+        const estimatedTokens = this.estimateTokenCount(text);
+        return estimatedTokens <= maxTokens;
     }
 }

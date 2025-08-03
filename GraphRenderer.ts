@@ -80,24 +80,91 @@ export class GraphRenderer {
         const width = this.container.clientWidth || 800;
         const height = this.container.clientHeight || 600;
 
-        // Initialize node positions
+        // Initialize node positions in a circle to prevent overlap at start
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = Math.min(width, height) * 0.3;
+        
         this.nodes.forEach((node, i) => {
-            node.x = Math.random() * width;
-            node.y = Math.random() * height;
+            const angle = (i / this.nodes.length) * 2 * Math.PI;
+            node.x = centerX + radius * Math.cos(angle);
+            node.y = centerY + radius * Math.sin(angle);
+            node.vx = 0;
+            node.vy = 0;
         });
 
+        // Create the simulation with properly configured forces
         this.simulation = d3.forceSimulation<GraphNode>(this.nodes)
             .force('link', d3.forceLink<GraphNode, GraphLink>(this.links)
                 .id(d => d.id)
-                .distance(this.plugin.settings.linkDistance))
+                .distance(this.plugin.settings.linkDistance)
+                .strength(1))
             .force('charge', d3.forceManyBody()
-                .strength(-this.plugin.settings.repulsionForce))
-            .force('center', d3.forceCenter(width / 2, height / 2)
+                .strength(-this.plugin.settings.repulsionForce)
+                .distanceMax(500))
+            .force('center', d3.forceCenter(centerX, centerY)
                 .strength(this.plugin.settings.centerForce))
-            .force('collision', d3.forceCollide()
-                .radius(this.plugin.settings.nodeSize + 10));
+            .force('collision', d3.forceCollide<GraphNode>()
+                .radius(d => this.plugin.settings.nodeSize + 10)
+                .strength(0.7))
+            .force('x', d3.forceX(centerX).strength(0.05))
+            .force('y', d3.forceY(centerY).strength(0.05));
+
+        // Set simulation parameters
+        this.simulation
+            .velocityDecay(0.6)
+            .alphaMin(0.001)
+            .alphaDecay(0.02);
 
         this.simulation.on('tick', () => this.ticked());
+    }
+
+    updateForces() {
+        const width = this.container.clientWidth || 800;
+        const height = this.container.clientHeight || 600;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
+        // Update link force
+        const linkForce = this.simulation.force('link') as d3.ForceLink<GraphNode, GraphLink>;
+        if (linkForce) {
+            linkForce.distance(this.plugin.settings.linkDistance);
+        }
+        
+        // Update charge force
+        const chargeForce = this.simulation.force('charge') as d3.ForceManyBody<GraphNode>;
+        if (chargeForce) {
+            chargeForce.strength(-this.plugin.settings.repulsionForce);
+        }
+        
+        // Update center force
+        const centerForce = this.simulation.force('center') as d3.ForceCenter<GraphNode>;
+        if (centerForce) {
+            centerForce.x(centerX).y(centerY).strength(this.plugin.settings.centerForce);
+        }
+        
+        // Restart simulation with some energy
+        this.simulation.alpha(0.3).restart();
+    }
+
+    private drag() {
+        return d3.drag<SVGGElement, GraphNode>()
+            .on('start', (event, d) => {
+                if (!event.active) this.simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            })
+            .on('drag', (event, d) => {
+                d.fx = event.x;
+                d.fy = event.y;
+            })
+            .on('end', (event, d) => {
+                if (!event.active) this.simulation.alphaTarget(0);
+                // Keep the node fixed after dragging
+                // Remove these lines if you want nodes to be free after dragging
+                // d.fx = null;
+                // d.fy = null;
+            });
     }
 
     private render() {
@@ -169,24 +236,6 @@ export class GraphRenderer {
         this.nodeElements = node;
     }
 
-    private drag() {
-        return d3.drag<SVGGElement, GraphNode>()
-            .on('start', (event, d) => {
-                if (!event.active) this.simulation.alphaTarget(0.3).restart();
-                d.vx = d.x;
-                d.vy = d.y;
-            })
-            .on('drag', (event, d) => {
-                d.vx = event.x;
-                d.vy = event.y;
-            })
-            .on('end', (event, d) => {
-                if (!event.active) this.simulation.alphaTarget(0);
-                d.vx = 0;
-                d.vy = 0;
-            });
-    }
-
     private ticked() {
         if (this.linkElements) {
             this.linkElements
@@ -249,22 +298,6 @@ export class GraphRenderer {
             .id(d => d.id)
             .distance(this.plugin.settings.linkDistance)
             .strength(strength));
-        this.simulation.alpha(0.3).restart();
-    }
-
-    updateForces() {
-        const width = this.container.clientWidth || 800;
-        const height = this.container.clientHeight || 600;
-        
-        this.simulation
-            .force('charge', d3.forceManyBody()
-                .strength(-this.plugin.settings.repulsionForce))
-            .force('center', d3.forceCenter(width / 2, height / 2)
-                .strength(this.plugin.settings.centerForce))
-            .force('link', d3.forceLink<GraphNode, GraphLink>(this.links)
-                .id(d => d.id)
-                .distance(this.plugin.settings.linkDistance));
-        
         this.simulation.alpha(0.3).restart();
     }
 

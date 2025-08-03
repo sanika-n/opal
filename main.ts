@@ -71,30 +71,74 @@ export default class BetterGraphPlugin extends Plugin {
         const files = this.app.vault.getMarkdownFiles();
         const notice = new Notice('Generating embeddings...', 0);
         
+        let successCount = 0;
+        let errorCount = 0;
+        let tokensSaved = 0;
+        
         try {
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 notice.setMessage(`Generating embeddings... ${i + 1}/${files.length}`);
                 
-                const content = await this.app.vault.read(file);
-                const cleanContent = this.embeddingService.cleanTextForEmbedding(content);
-                
-                if (cleanContent.trim()) {
-                    const embedding = await this.embeddingService.getEmbedding(cleanContent);
-                    await this.storeEmbeddingLocally(file.path, embedding);
+                try {
+                    const content = await this.app.vault.read(file);
+                    
+                    // Extract only headings and first 100 words
+                    const cleanContent = this.embeddingService.cleanTextForEmbedding(content);
+                    
+                    if (cleanContent.trim()) {
+                        // Optional: Show token savings
+                        const fullContent = content.replace(/---[\s\S]*?---\n?/m, '').trim();
+                        const fullTokens = this.embeddingService.estimateTokenCount(fullContent);
+                        const reducedTokens = this.embeddingService.estimateTokenCount(cleanContent);
+                        tokensSaved += (fullTokens - reducedTokens);
+                        
+                        const embedding = await this.embeddingService.getEmbedding(cleanContent);
+                        await this.storeEmbeddingLocally(file.path, embedding);
+                        
+                        // Store metadata about what was embedded
+                        const metadata = {
+                            embeddedAt: new Date().toISOString(),
+                            method: 'headings-and-first-100-words',
+                            textLength: cleanContent.length
+                        };
+                        await this.storeEmbeddingMetadata(file.path, metadata);
+                        
+                        successCount++;
+                    } else {
+                        console.log(`Skipping empty file: ${file.path}`);
+                    }
+                } catch (error) {
+                    console.error(`Error processing file ${file.path}:`, error);
+                    errorCount++;
                 }
 
-                // Rate limiting
+                // Rate limiting - adjust as needed
                 await new Promise(resolve => setTimeout(resolve, 200));
             }
             
             notice.hide();
-            new Notice(`Generated embeddings for ${files.length} notes`);
+            
+            const message = `Generated embeddings for ${successCount} notes` + 
+                (errorCount > 0 ? ` (${errorCount} errors)` : '') +
+                `\nEstimated tokens saved: ${tokensSaved.toLocaleString()}`;
+            
+            new Notice(message, 5000);
         } catch (error) {
             notice.hide();
             new Notice(`Error generating embeddings: ${error.message}`);
             console.error('Embedding generation error:', error);
         }
+    }
+
+    // Add this helper method to store metadata
+    async storeEmbeddingMetadata(filePath: string, metadata: any): Promise<void> {
+        const data = await this.loadData() || {};
+        if (!data.embeddingMetadata) {
+            data.embeddingMetadata = {};
+        }
+        data.embeddingMetadata[filePath] = metadata;
+        await this.saveData(data);
     }
 
     async storeEmbeddingLocally(filePath: string, embedding: number[]): Promise<void> {
