@@ -6,3 +6,129 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+/* styles.css */
+.better-graph-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--background-primary);
+}
+
+.graph-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--background-secondary);
+    border-radius: 5px;
+    margin: 10px;
+}
+
+.graph-svg {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+.graph-svg:active {
+    cursor: grabbing;
+}
+
+.graph-controls {
+    padding: 10px;
+    background-color: var(--background-primary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.control-panel {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.control-panel button {
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.thickness-panel {
+    background-color: var(--background-secondary);
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.thickness-panel h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: var(--text-normal);
+}
+
+.thickness-control {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 10px;
+}
+
+.thickness-label {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.thickness-slider {
+    width: 100px;
+    height: 20px;
+}
+
+.thickness-value {
+    width: 30px;
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.graph-link {
+    cursor: pointer;
+    transition: stroke-width 0.2s ease;
+}
+
+.graph-link:hover {
+    stroke-opacity: 1 !important;
+    stroke: var(--text-accent) !important;
+}
+
+.graph-node {
+    cursor: pointer;
+}
+
+.node-label {
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 0 2px var(--background-primary));
+}
+
+.graph-node:hover .node-label {
+    fill: var(--text-accent);
+    font-weight: bold;
+}
+
+/* Match Obsidian's modal style */
+.modal.better-graph-view {
+    width: 90vw;
+    height: 80vh;
+    max-width: 1200px;
+}
+
+.modal.better-graph-view .modal-content {
+    padding: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
