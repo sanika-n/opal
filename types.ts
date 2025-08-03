@@ -60,11 +60,12 @@ export interface GraphNode extends d3.SimulationNodeDatum {
     y?: number;
     vx?: number;
     vy?: number;
-    fx?: number | null;  // Fixed x position
-    fy?: number | null;  // Fixed y position
+    fx?: number | null;
+    fy?: number | null;
     embedding?: number[];
     hidden?: boolean;
-    type?: 'file' | 'tag';
+    type?: 'file' | 'tag' | 'attachment';
+    connectionCount?: number;  // Add this for tag sizing
 }
 
 export interface GraphLink {

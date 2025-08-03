@@ -3,17 +3,18 @@ import { TFile } from 'obsidian';
 import type BetterGraphPlugin from './main';
 import type { BetterGraphView } from './GraphView';
 import { GraphNode, GraphLink } from './types';
+import CombinedPlugin from './main';
 
 export class GraphRenderer {
     private container: HTMLElement;
-    private plugin: BetterGraphPlugin;
+    private plugin: CombinedPlugin;
     private view: BetterGraphView;
     private svg: d3.Selection<SVGSVGElement, unknown, null, undefined>;
     private g: d3.Selection<SVGGElement, unknown, null, undefined>;
     private simulation: d3.Simulation<GraphNode, GraphLink>;
     private nodes: GraphNode[] = [];
     private links: GraphLink[] = [];
-    private linkElements: d3.Selection<SVGLineElement, GraphLink, SVGGElement, unknown>;
+    private linkElements: d3.Selection<SVGGElement, GraphLink, SVGGElement, unknown>;
     private nodeElements: d3.Selection<SVGGElement, GraphNode, SVGGElement, unknown>;
     private zoom: d3.ZoomBehavior<SVGSVGElement, unknown>;
     private isAnimating: boolean = true;
@@ -24,14 +25,355 @@ export class GraphRenderer {
         this.view = view;
     }
 
+    isInitialized: boolean = false;
+
     initialize(nodes: GraphNode[], links: GraphLink[]) {
         this.nodes = nodes;
         this.links = links;
+        
+        // Clear any existing content
+        d3.select(this.container).selectAll('*').remove();
+        
         this.setupSVG();
+        this.setupDefs();
         this.setupSimulation();
-        this.render();
+        this.setupLinks();
+        this.setupNodes();
+        this.setupZoom();
+        
+        this.isInitialized = true;  // Set the flag
     }
 
+    updateData(nodes: GraphNode[], links: GraphLink[]) {
+        if (!this.isInitialized) {
+            console.warn('GraphRenderer not initialized yet');
+            return;
+        }
+        
+        this.nodes = nodes;
+        this.links = links;
+        
+        // Update simulation
+        this.simulation.nodes(this.nodes);
+        const linkForce = this.simulation.force('link') as d3.ForceLink<GraphNode, GraphLink>;
+        if (linkForce) {
+            linkForce.links(this.links);
+        }
+        
+        // Update visual elements
+        this.setupLinks();
+        this.setupNodes();
+        
+        // Restart simulation
+        this.simulation.alpha(0.3).restart();
+    }
+
+
+    private setupDefs() {
+        // Add arrow markers for directed links
+        const defs = this.svg.append('defs');
+        
+        defs.append('marker')
+            .attr('id', 'arrow')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 15)  // Reduced from 20
+            .attr('refY', 0)
+            .attr('markerWidth', 4)  // Reduced from 6
+            .attr('markerHeight', 4)  // Reduced from 6
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('fill', 'var(--text-muted)')
+            .attr('d', 'M0,-5L10,0L0,5');
+    }
+
+private setupLinks() {
+    this.g.selectAll('.links').remove();
+    
+    const linksGroup = this.g.append('g')
+        .attr('class', 'links');
+    
+    // Create groups for each link
+    this.linkElements = linksGroup.selectAll<SVGGElement, GraphLink>('g.link-group')
+        .data(this.links)
+        .join('g')
+        .attr('class', d => `link-group ${d.type || 'normal'}`);
+    
+    // Add either solid lines or prepare for dotted lines
+    this.linkElements.each(function(d) {
+        const group = d3.select(this);
+        
+        if (d.similarity !== undefined && d.similarity > 0) {
+            // For similarity links, we'll add dots in the ticked function
+            group.attr('data-similarity', d.similarity);
+        } else {
+            // Regular solid line
+            group.append('line')
+                .attr('class', 'link solid-link')
+                .attr('stroke', 'var(--text-muted)')
+                .attr('stroke-opacity', 0.6)
+                .attr('stroke-width', d.type === 'tag-link' ? 1 : 2)
+                .attr('marker-end', d.type === 'tag-link' ? null : 'url(#arrow)');
+        }
+    });
+}
+
+private setupNodes() {
+    this.g.selectAll('.nodes').remove();
+    
+    this.nodeElements = this.g.append('g')
+        .attr('class', 'nodes')
+        .selectAll<SVGGElement, GraphNode>('g')
+        .data(this.nodes)
+        .join('g')
+        .attr('class', d => `node ${d.type || 'file'}`)
+        .call(this.drag());
+
+    // Add circles with size based on connections for tags
+    this.nodeElements.append('circle')
+        .attr('r', d => {
+            if (d.type === 'tag' && d.connectionCount) {
+                // Scale tag size based on connection count
+                const minSize = this.plugin.settings.nodeSize * 0.8;
+                const maxSize = this.plugin.settings.nodeSize * 2;
+                const scaleFactor = Math.log(d.connectionCount + 1) / Math.log(10); // Logarithmic scaling
+                return Math.min(maxSize, minSize + scaleFactor * 10);
+            }
+            return this.plugin.settings.nodeSize;
+        })
+        .attr('fill', d => {
+            if (d.type === 'tag') {
+                return 'var(--text-accent)';
+            }
+            return 'var(--text-muted)';
+        })
+        .attr('stroke', 'var(--background-primary)')
+        .attr('stroke-width', 2)
+        .attr('opacity', 1);
+
+        // Add labels
+        this.nodeElements.append('text')
+            .text(d => d.name)
+            .attr('x', 0)
+            .attr('y', d => (d.type === 'tag' ? this.plugin.settings.nodeSize * 0.8 : this.plugin.settings.nodeSize) + 15)
+            .attr('text-anchor', 'middle')
+            .attr('class', 'node-label')
+            .style('fill', 'var(--text-normal)')
+            .style('font-size', d => d.type === 'tag' ? '11px' : '12px')
+            .style('font-weight', d => d.type === 'tag' ? '600' : 'normal');
+
+        // Add hover effects with relationship highlighting
+        this.nodeElements.on('mouseenter', (event, hoveredNode) => {
+            // Get connected nodes
+            const connectedNodeIds = new Set<string>();
+            connectedNodeIds.add(hoveredNode.id);
+            
+            this.links.forEach(link => {
+                const sourceId = typeof link.source === 'string' ? link.source : (link.source as any).id;
+                const targetId = typeof link.target === 'string' ? link.target : (link.target as any).id;
+                
+                if (sourceId === hoveredNode.id) {
+                    connectedNodeIds.add(targetId);
+                } else if (targetId === hoveredNode.id) {
+                    connectedNodeIds.add(sourceId);
+                }
+            });
+
+            // Update node styling
+            this.nodeElements.selectAll('circle')
+                .transition()
+                .duration(200)
+                .attr('fill', function(d: GraphNode) {
+                    if (d.id === hoveredNode.id) {
+                        return 'var(--text-success)'; // Green for hovered node
+                    } else if (connectedNodeIds.has(d.id)) {
+                        // Keep original color for connected nodes
+                        return d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)';
+                    } else {
+                        // Same color but with reduced opacity for unrelated
+                        return d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)';
+                    }
+                })
+                .attr('opacity', (d: GraphNode) => {
+                    if (d.id === hoveredNode.id || connectedNodeIds.has(d.id)) {
+                        return 1;
+                    } else {
+                        return 0.3; // Reduced opacity for unrelated nodes
+                    }
+                });
+
+            // Update link styling
+            this.linkElements
+                .transition()
+                .duration(200)
+                .attr('stroke-opacity', d => {
+                    const sourceId = typeof d.source === 'string' ? d.source : (d.source as any).id;
+                    const targetId = typeof d.target === 'string' ? d.target : (d.target as any).id;
+                    
+                    if (sourceId === hoveredNode.id || targetId === hoveredNode.id) {
+                        return 0.8;
+                    } else {
+                        return 0.2;
+                    }
+                });
+
+            // Update text opacity
+            this.nodeElements.selectAll('text')
+                .transition()
+                .duration(200)
+                .style('opacity', (d: GraphNode) => {
+                    if (d.id === hoveredNode.id || connectedNodeIds.has(d.id)) {
+                        return 1;
+                    } else {
+                        return 0.3;
+                    }
+                });
+        })
+        .on('mouseleave', () => {
+            // Reset all styling
+            this.nodeElements.selectAll('circle')
+                .transition()
+                .duration(200)
+                .attr('fill', (d: GraphNode) => d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)')
+                .attr('opacity', 1);
+
+            this.linkElements
+                .transition()
+                .duration(200)
+                .attr('stroke-opacity', 0.6);
+
+            this.nodeElements.selectAll('text')
+                .transition()
+                .duration(200)
+                .style('opacity', 1);
+        });
+
+        // Handle clicks
+        this.nodeElements.on('click', async (event, d) => {
+            event.stopPropagation();
+            if (d.type !== 'tag') {
+                const file = this.plugin.app.vault.getAbstractFileByPath(d.path);
+                if (file instanceof TFile) {
+                    await this.plugin.app.workspace.getLeaf().openFile(file);
+                }
+            }
+        });
+
+        // Update hover effects
+    this.nodeElements.on('mouseenter', (event, hoveredNode) => {
+        // Get connected nodes
+        const connectedNodeIds = new Set<string>();
+        connectedNodeIds.add(hoveredNode.id);
+        
+        this.links.forEach(link => {
+            const sourceId = typeof link.source === 'string' ? link.source : (link.source as any).id;
+            const targetId = typeof link.target === 'string' ? link.target : (link.target as any).id;
+            
+            if (sourceId === hoveredNode.id) {
+                connectedNodeIds.add(targetId);
+            } else if (targetId === hoveredNode.id) {
+                connectedNodeIds.add(sourceId);
+            }
+        });
+
+        // Update node styling
+        this.nodeElements.selectAll('circle')
+            .transition()
+            .duration(200)
+            .attr('fill', function(d: GraphNode) {
+                if (d.id === hoveredNode.id) {
+                    return 'var(--text-success)';
+                } else if (connectedNodeIds.has(d.id)) {
+                    return d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)';
+                } else {
+                    return d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)';
+                }
+            })
+            .attr('opacity', (d: GraphNode) => {
+                if (d.id === hoveredNode.id || connectedNodeIds.has(d.id)) {
+                    return 1;
+                } else {
+                    return 0.3;
+                }
+            });
+
+        // Update link styling - handle both solid lines and dots
+        this.linkElements.each(function(d: any) {
+            const group = d3.select(this);
+            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+            const isConnected = sourceId === hoveredNode.id || targetId === hoveredNode.id;
+            
+            // Update solid lines
+            group.select('line')
+                .transition()
+                .duration(200)
+                .attr('stroke-opacity', isConnected ? 0.8 : 0.2);
+            
+            // Update dots
+            group.selectAll('circle')
+                .transition()
+                .duration(200)
+                .attr('opacity', isConnected ? 0.8 : 0.2);
+        });
+
+        // Update text opacity
+        this.nodeElements.selectAll('text')
+            .transition()
+            .duration(200)
+            .style('opacity', (d: GraphNode) => {
+                if (d.id === hoveredNode.id || connectedNodeIds.has(d.id)) {
+                    return 1;
+                } else {
+                    return 0.3;
+                }
+            });
+    })
+    .on('mouseleave', () => {
+        // Reset all styling
+        this.nodeElements.selectAll('circle')
+            .transition()
+            .duration(200)
+            .attr('fill', (d: GraphNode) => d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)')
+            .attr('opacity', 1);
+
+        // Reset link styling
+        this.linkElements.each(function() {
+            const group = d3.select(this);
+            
+            group.select('line')
+                .transition()
+                .duration(200)
+                .attr('stroke-opacity', 0.6);
+            
+            group.selectAll('circle')
+                .transition()
+                .duration(200)
+                .attr('opacity', 0.6);
+        });
+
+        this.nodeElements.selectAll('text')
+            .transition()
+            .duration(200)
+            .style('opacity', 1);
+    });
+}
+
+    private setupZoom() {
+        // Zoom is already set up in setupSVG, but let's enhance it
+        this.zoom = d3.zoom<SVGSVGElement, unknown>()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+                this.g.attr('transform', event.transform);
+                
+                // Handle text fading based on zoom level
+                const zoomLevel = event.transform.k;
+                const fadeThreshold = 0.7; // You can make this configurable
+                this.nodeElements?.selectAll('text')
+                    .style('opacity', zoomLevel < fadeThreshold ? 0 : 1);
+            });
+
+        this.svg.call(this.zoom);
+    }
     private setupSVG() {
         // Clear any existing SVG
         d3.select(this.container).selectAll('*').remove();
@@ -76,75 +418,91 @@ export class GraphRenderer {
     
     }
 
-    private setupSimulation() {
-        const width = this.container.clientWidth || 800;
-        const height = this.container.clientHeight || 600;
+private setupSimulation() {
+    const width = this.container.clientWidth || 800;
+    const height = this.container.clientHeight || 600;
+    const centerX = width / 2;
+    const centerY = height / 2;
 
-        // Initialize node positions in a circle to prevent overlap at start
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const radius = Math.min(width, height) * 0.3;
-        
-        this.nodes.forEach((node, i) => {
-            const angle = (i / this.nodes.length) * 2 * Math.PI;
-            node.x = centerX + radius * Math.cos(angle);
-            node.y = centerY + radius * Math.sin(angle);
-            node.vx = 0;
-            node.vy = 0;
-        });
+    this.simulation = d3.forceSimulation<GraphNode>(this.nodes)
+        .force('link', d3.forceLink<GraphNode, GraphLink>(this.links)
+            .id(d => d.id)
+            .distance(d => {
+                if (d.similarity !== undefined) {
+                    return this.plugin.settings.linkDistance * (2 - d.similarity);
+                }
+                return this.plugin.settings.linkDistance;
+            })
+            .strength(0.5))
+        .force('charge', d3.forceManyBody()
+            .strength((d: GraphNode) => {
+                // Stronger repulsion for tag nodes based on their size
+                if (d.type === 'tag' && d.connectionCount) {
+                    return -this.plugin.settings.repulsionForce * (1 + Math.log(d.connectionCount + 1) / 3);
+                }
+                return -this.plugin.settings.repulsionForce;
+            }))
+        .force('center', d3.forceCenter(centerX, centerY)
+            .strength(this.plugin.settings.centerForce))
+        // Use forceX and forceY instead of radial to spread nodes better
+        .force('x', d3.forceX(centerX).strength(0.05))
+        .force('y', d3.forceY(centerY).strength(0.05))
+        .force('collision', d3.forceCollide()
+            .radius((d: GraphNode) => {
+                if (d.type === 'tag' && d.connectionCount) {
+                    const minSize = this.plugin.settings.nodeSize * 0.8;
+                    const maxSize = this.plugin.settings.nodeSize * 2;
+                    const scaleFactor = Math.log(d.connectionCount + 1) / Math.log(10);
+                    return Math.min(maxSize, minSize + scaleFactor * 10) + 5;
+                }
+                return this.plugin.settings.nodeSize + 5;
+            })
+            .strength(0.7))
+        .on('tick', () => this.ticked());
 
-        // Create the simulation with properly configured forces
-        this.simulation = d3.forceSimulation<GraphNode>(this.nodes)
-            .force('link', d3.forceLink<GraphNode, GraphLink>(this.links)
-                .id(d => d.id)
-                .distance(this.plugin.settings.linkDistance)
-                .strength(1))
-            .force('charge', d3.forceManyBody()
-                .strength(-this.plugin.settings.repulsionForce)
-                .distanceMax(500))
-            .force('center', d3.forceCenter(centerX, centerY)
-                .strength(this.plugin.settings.centerForce))
-            .force('collision', d3.forceCollide<GraphNode>()
-                .radius(d => this.plugin.settings.nodeSize + 10)
-                .strength(0.7))
-            .force('x', d3.forceX(centerX).strength(0.05))
-            .force('y', d3.forceY(centerY).strength(0.05));
+    // Apply initial positions in a grid to ensure good distribution
+    const cols = Math.ceil(Math.sqrt(this.nodes.length));
+    const cellWidth = width / cols;
+    const cellHeight = height / cols;
+    
+    this.nodes.forEach((node, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        node.x = cellWidth * (col + 0.5) + (Math.random() - 0.5) * 20;
+        node.y = cellHeight * (row + 0.5) + (Math.random() - 0.5) * 20;
+    });
 
-        // Set simulation parameters
-        this.simulation
-            .velocityDecay(0.6)
-            .alphaMin(0.001)
-            .alphaDecay(0.02);
-
-        this.simulation.on('tick', () => this.ticked());
-    }
+    this.simulation.alpha(1).restart();
+}
 
     updateForces() {
         const width = this.container.clientWidth || 800;
         const height = this.container.clientHeight || 600;
         const centerX = width / 2;
         const centerY = height / 2;
-        
-        // Update link force
-        const linkForce = this.simulation.force('link') as d3.ForceLink<GraphNode, GraphLink>;
-        if (linkForce) {
-            linkForce.distance(this.plugin.settings.linkDistance);
+        const radius = Math.min(width, height) * 0.4;
+            
+        if (this.simulation) {
+            (this.simulation.force('charge') as d3.ForceManyBody<GraphNode>)
+                ?.strength(-this.plugin.settings.repulsionForce);
+            
+            (this.simulation.force('center') as d3.ForceCenter<GraphNode>)
+                ?.strength(this.plugin.settings.centerForce);
+            
+            (this.simulation.force('link') as d3.ForceLink<GraphNode, GraphLink>)
+                ?.distance(d => {
+                    if (d.similarity !== undefined) {
+                        return this.plugin.settings.linkDistance * (2 - d.similarity);
+                    }
+                    return this.plugin.settings.linkDistance;
+                });
+            
+            // Update radial force
+            (this.simulation.force('radial') as d3.ForceRadial<GraphNode>)
+                ?.radius(radius);
+
+            this.simulation.alpha(0.3).restart();
         }
-        
-        // Update charge force
-        const chargeForce = this.simulation.force('charge') as d3.ForceManyBody<GraphNode>;
-        if (chargeForce) {
-            chargeForce.strength(-this.plugin.settings.repulsionForce);
-        }
-        
-        // Update center force
-        const centerForce = this.simulation.force('center') as d3.ForceCenter<GraphNode>;
-        if (centerForce) {
-            centerForce.x(centerX).y(centerY).strength(this.plugin.settings.centerForce);
-        }
-        
-        // Restart simulation with some energy
-        this.simulation.alpha(0.3).restart();
     }
 
     private drag() {
@@ -236,20 +594,56 @@ export class GraphRenderer {
         this.nodeElements = node;
     }
 
-    private ticked() {
-        if (this.linkElements) {
-            this.linkElements
-                .attr('x1', d => (d.source as any).x!)
-                .attr('y1', d => (d.source as any).y!)
-                .attr('x2', d => (d.target as any).x!)
-                .attr('y2', d => (d.target as any).y!);
+private ticked() {
+    // Update link positions
+    this.linkElements.each(function(d: any) {
+        const group = d3.select(this);
+        const source = d.source as GraphNode;
+        const target = d.target as GraphNode;
+        
+        // Update solid lines
+        group.select('line.solid-link')
+            .attr('x1', source.x!)
+            .attr('y1', source.y!)
+            .attr('x2', target.x!)
+            .attr('y2', target.y!);
+        
+        // Handle dotted lines for similarity links
+        const similarity = group.attr('data-similarity');
+        if (similarity) {
+            const sim = parseFloat(similarity);
+            const dx = target.x! - source.x!;
+            const dy = target.y! - source.y!;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Calculate dot spacing based on similarity (distance = 1/correlation)
+            const dotRadius = 1.5;
+            // const spacing = Math.max(4, (1 / sim) * 15);
+            const spacing = 1 / (sim - 0.82)
+            
+            // Remove old dots
+            group.selectAll('circle').remove();
+            
+            // Create new dots
+            const numDots = Math.floor(distance / spacing);
+            if (numDots > 1) {
+                for (let i = 1; i < numDots; i++) {
+                    const t = i / numDots;
+                    group.append('circle')
+                        .attr('class', 'link-dot')
+                        .attr('cx', source.x! + dx * t)
+                        .attr('cy', source.y! + dy * t)
+                        .attr('r', dotRadius)
+                        .attr('fill', 'var(--text-muted)')
+                        .attr('opacity', 0.6);
+                }
+            }
         }
-
-        if (this.nodeElements) {
-            this.nodeElements
-                .attr('transform', d => `translate(${d.x},${d.y})`);
-        }
-    }
+    });
+    
+    // Update node positions
+    this.nodeElements.attr('transform', d => `translate(${d.x},${d.y})`);
+}
 
     // Add these methods to GraphRenderer class:
 
@@ -308,16 +702,6 @@ export class GraphRenderer {
         } else {
             this.simulation.stop();
         }
-    }
-
-    updateData(nodes: GraphNode[], links: GraphLink[]) {
-        this.nodes = nodes;
-        this.links = links;
-        
-        // Clear and re-render
-        this.g.selectAll('*').remove();
-        this.setupSimulation();
-        this.render();
     }
 
     resize() {

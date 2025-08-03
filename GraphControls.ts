@@ -1,10 +1,10 @@
 import { setIcon } from 'obsidian';
-import type BetterGraphPlugin from './main';
+import type CombinedPlugin from './main';
 import type { BetterGraphView } from './GraphView';
 
 export class GraphControls {
     private container: HTMLElement;
-    private plugin: BetterGraphPlugin;
+    private plugin: CombinedPlugin;
     private view: BetterGraphView;
     private isAnimating: boolean = true;
     
@@ -17,7 +17,7 @@ export class GraphControls {
         searchQuery: ''
     };
 
-    constructor(container: HTMLElement, plugin: BetterGraphPlugin, view: BetterGraphView) {
+    constructor(container: HTMLElement, plugin: CombinedPlugin, view: BetterGraphView) {
         this.container = container;
         this.plugin = plugin;
         this.view = view;
@@ -47,15 +47,16 @@ export class GraphControls {
         });
 
         // Toggles with actual functionality
-        this.createToggle(filtersSection, 'Tags', this.filters.showTags, (enabled) => {
+        this.createToggle(filtersSection, 'Tags', this.filters.showTags, async (enabled) => {
             this.filters.showTags = enabled;
-            this.view.filters = this.filters; // Pass filters to view
-            this.applyFilters();
+            this.view.filters.showTags = enabled;
+            await this.view.refresh();
         });
         
-        this.createToggle(filtersSection, 'Attachments', this.filters.showAttachments, (enabled) => {
+        this.createToggle(filtersSection, 'Attachments', this.filters.showAttachments, async (enabled) => {
             this.filters.showAttachments = enabled;
-            this.applyFilters();
+            this.view.filters.showAttachments = enabled;
+            await this.view.refresh();
         });
         
         this.createToggle(filtersSection, 'Existing files only', this.filters.existingFilesOnly, (enabled) => {
@@ -225,30 +226,24 @@ export class GraphControls {
                 shouldShow = false;
             }
 
-            // File type filters
-            const file = this.plugin.app.vault.getAbstractFileByPath(node.path);
-            if (file && 'extension' in file) {
-                const extension = file.extension;
-                
-                // Check if it's a tag
-                if (node.path.startsWith('#')) {
-                    shouldShow = shouldShow && this.filters.showTags;
-                }
-                // Check if it's an attachment
-                else if (extension && ['png', 'jpg', 'jpeg', 'gif', 'svg', 'pdf', 'mp4', 'webm', 'mp3', 'wav'].includes(extension.toString())) {
-                    shouldShow = shouldShow && this.filters.showAttachments;
-                }
-                // Regular markdown files
-                else if (extension === 'md') {
-                    // Check orphan status
+            // Check node type
+            if (node.type === 'tag') {
+                shouldShow = shouldShow && this.filters.showTags;
+            } else if (node.type === 'attachment') {
+                shouldShow = shouldShow && this.filters.showAttachments;
+            } else {
+                // File nodes
+                const file = this.plugin.app.vault.getAbstractFileByPath(node.path);
+                if (file) {
+                    // Check orphan status for markdown files
                     const isOrphan = !linkedFiles.has(node.id);
                     if (isOrphan && !this.filters.showOrphans) {
                         shouldShow = false;
                     }
+                } else if (this.filters.existingFilesOnly) {
+                    // File doesn't exist
+                    shouldShow = false;
                 }
-            } else if (this.filters.existingFilesOnly) {
-                // File doesn't exist
-                shouldShow = false;
             }
 
             node.hidden = !shouldShow;
@@ -284,17 +279,17 @@ export class GraphControls {
         return content;
     }
 
-    private createToggle(parent: HTMLElement, label: string, checked: boolean, onChange?: (enabled: boolean) => void): HTMLElement {
+    private createToggle(parent: HTMLElement, label: string, checked: boolean, onChange?: (enabled: boolean) => void | Promise<void>): HTMLElement {
         const container = parent.createDiv('toggle-container');
         container.createEl('label', { text: label });
         const toggle = container.createDiv('toggle');
         toggle.classList.toggle('is-enabled', checked);
         
-        toggle.addEventListener('click', () => {
+        toggle.addEventListener('click', async () => {
             const isEnabled = !toggle.classList.contains('is-enabled');
             toggle.classList.toggle('is-enabled', isEnabled);
             if (onChange) {
-                onChange(isEnabled);
+                await onChange(isEnabled);
             }
         });
         

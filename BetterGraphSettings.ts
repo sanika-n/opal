@@ -1,10 +1,10 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
-import type BetterGraphPlugin from './main';
+import type CombinedPlugin from './main';
 
-export class BetterGraphSettingTab extends PluginSettingTab {
-    plugin: BetterGraphPlugin;
+export class CombinedSettingTab extends PluginSettingTab {
+    plugin: CombinedPlugin;
 
-    constructor(app: App, plugin: BetterGraphPlugin) {
+    constructor(app: App, plugin: CombinedPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
@@ -13,14 +13,14 @@ export class BetterGraphSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        containerEl.createEl('h2', { text: 'Better Graph View Settings' });
+        containerEl.createEl('h2', { text: 'Better Graph & AI Tools Settings' });
 
         // API Configuration Section
         containerEl.createEl('h3', { text: 'API Configuration' });
 
         new Setting(containerEl)
             .setName('OpenAI API Key')
-            .setDesc('Required for generating semantic embeddings')
+            .setDesc('Required for generating semantic embeddings and AI summaries')
             .addText(text => text
                 .setPlaceholder('sk-...')
                 .setValue(this.plugin.settings.openaiApiKey)
@@ -84,6 +84,18 @@ export class BetterGraphSettingTab extends PluginSettingTab {
                 .setDynamicTooltip()
                 .onChange(async (value) => {
                     this.plugin.settings.similarityThreshold = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Word Limit for Embeddings')
+            .setDesc('Number of words to include from document body (in addition to all headings)')
+            .addSlider(slider => slider
+                .setLimits(50, 500, 50)
+                .setValue(this.plugin.settings.embeddingWordLimit)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    this.plugin.settings.embeddingWordLimit = value;
                     await this.plugin.saveSettings();
                 }));
 
@@ -202,18 +214,6 @@ export class BetterGraphSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-          .setName('Word Limit for Embeddings')
-          .setDesc('Number of words to include from document body (in addition to all headings)')
-          .addSlider(slider => slider
-              .setLimits(50, 500, 50)
-              .setValue(this.plugin.settings.embeddingWordLimit)
-              .setDynamicTooltip()
-              .onChange(async (value) => {
-                  this.plugin.settings.embeddingWordLimit = value;
-                  await this.plugin.saveSettings();
-              }));
-
-        new Setting(containerEl)
             .setName('Clear All Embeddings')
             .setDesc('Remove all stored embeddings')
             .addButton(button => button
@@ -222,8 +222,10 @@ export class BetterGraphSettingTab extends PluginSettingTab {
                 .onClick(async () => {
                     const data = await this.plugin.loadData() || {};
                     data.embeddings = {};
+                    data.embeddingMetadata = {};
                     await this.plugin.saveData(data);
                     new Notice('All embeddings cleared');
+                    this.updateEmbeddingStatus(containerEl.querySelector('.embedding-status') as HTMLElement);
                 }));
 
         new Setting(containerEl)
@@ -245,10 +247,13 @@ export class BetterGraphSettingTab extends PluginSettingTab {
     }
 
     async updateEmbeddingStatus(container: HTMLElement) {
+        if (!container) return;
+        
         container.empty();
         
         const data = await this.plugin.loadData() || {};
         const embeddings = data.embeddings || {};
+        const metadata = data.embeddingMetadata || {};
         const totalFiles = this.plugin.app.vault.getMarkdownFiles().length;
         const embeddedFiles = Object.keys(embeddings).length;
         
@@ -275,6 +280,19 @@ export class BetterGraphSettingTab extends PluginSettingTab {
                 border-radius: 2px;
                 transition: width 0.3s ease;
             `;
+
+            // Show last update time if available
+            const lastUpdate = Object.values(metadata)
+                .map((m: any) => new Date(m.embeddedAt).getTime())
+                .reduce((a, b) => Math.max(a, b), 0);
+            
+            if (lastUpdate > 0) {
+                const lastUpdateDate = new Date(lastUpdate);
+                container.createEl('p', {
+                    text: `Last updated: ${lastUpdateDate.toLocaleDateString()} ${lastUpdateDate.toLocaleTimeString()}`,
+                    cls: 'setting-item-description'
+                });
+            }
         }
     }
 }

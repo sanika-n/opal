@@ -207,3 +207,173 @@
 .links line {
     pointer-events: none;
 }
+
+/* Add these styles for the graph */
+
+.better-graph-view {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.graph-svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Node styling */
+.node {
+    cursor: pointer;
+}
+
+.node circle {
+    transition: all 0.2s ease;
+}
+
+.node-label {
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.2s ease;
+}
+
+/* Link styling */
+.link {
+    fill: none;
+    pointer-events: none;
+    transition: stroke-opacity 0.2s ease;
+}
+
+/* Tag-specific styling */
+.node.tag circle {
+    filter: brightness(1.2);
+}
+
+.node.tag .node-label {
+    font-weight: 600;
+}
+
+/* Hover states */
+.node:hover circle {
+    filter: brightness(1.3);
+}
+
+/* Arrow marker */
+#arrow {
+    opacity: 0.6;
+}
+
+/* Control panel styling to match Obsidian */
+.graph-controls {
+    background: var(--background-secondary);
+    padding: 10px;
+    overflow-y: auto;
+    font-size: var(--font-ui-small);
+}
+
+.control-section {
+    margin-bottom: 8px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.section-toggle {
+    margin-right: 4px;
+    color: var(--text-muted);
+}
+
+.section-title {
+    color: var(--text-normal);
+    font-weight: 500;
+}
+
+.toggle-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.toggle {
+    width: 34px;
+    height: 20px;
+    background: var(--background-modifier-border);
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.toggle.is-enabled {
+    background: var(--interactive-accent);
+}
+
+.toggle::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+
+.toggle.is-enabled::after {
+    transform: translateX(14px);
+}
+
+
+/* Update the existing styles and add new ones for dotted links */
+
+/* Custom dotted link styling */
+.dotted-link circle {
+    pointer-events: none;
+}
+
+/* Tag node specific styling */
+.node.tag circle {
+    filter: brightness(1.2);
+    transition: all 0.2s ease;
+}
+
+/* Make sure the graph container uses full space */
+.graph-container svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Add these styles after the existing ones */
+
+/* Link group styling */
+.link-group {
+    pointer-events: none;
+}
+
+/* Dotted link dots */
+.link-dot {
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+/* Solid link styling */
+.solid-link {
+    fill: none;
+    stroke: var(--text-muted);
+    transition: stroke-opacity 0.2s ease;
+}
+
+/* Remove duplicate .links and .nodes z-index rules and keep just one set */
+.links {
+    z-index: 1;
+}
+
+.nodes {
+    z-index: 2;
+}

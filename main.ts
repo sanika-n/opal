@@ -1,17 +1,15 @@
-// main.ts
-import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, requestUrl } from 'obsidian';
+import { Plugin, TFile, Notice, requestUrl } from 'obsidian';
 import { BetterGraphView, VIEW_TYPE_GRAPH } from './GraphView';
-import { BetterGraphSettingTab } from './BetterGraphSettings';
+import { CombinedSettingTab } from './BetterGraphSettings';
 import { BetterGraphSettings, DEFAULT_SETTINGS } from './types';
 import { EmbeddingService } from './EmbeddingService';
 
 interface CombinedPluginSettings extends BetterGraphSettings {
-	openaiApiKey: string;
+    // All settings are already in BetterGraphSettings
 }
 
 const COMBINED_DEFAULT_SETTINGS: CombinedPluginSettings = {
-	...DEFAULT_SETTINGS,
-	openaiApiKey: ''
+    ...DEFAULT_SETTINGS
 }
 
 export default class CombinedPlugin extends Plugin {
@@ -107,11 +105,11 @@ export default class CombinedPlugin extends Plugin {
                 try {
                     const content = await this.app.vault.read(file);
                     
-                    // Extract only headings and first 100 words
+                    // Extract only headings and first N words
                     const cleanContent = this.embeddingService.cleanTextForEmbedding(content);
                     
                     if (cleanContent.trim()) {
-                        // Optional: Show token savings
+                        // Show token savings
                         const fullContent = content.replace(/---[\s\S]*?---\n?/m, '').trim();
                         const fullTokens = this.embeddingService.estimateTokenCount(fullContent);
                         const reducedTokens = this.embeddingService.estimateTokenCount(cleanContent);
@@ -123,7 +121,7 @@ export default class CombinedPlugin extends Plugin {
                         // Store metadata about what was embedded
                         const metadata = {
                             embeddedAt: new Date().toISOString(),
-                            method: 'headings-and-first-100-words',
+                            method: `headings-and-first-${this.settings.embeddingWordLimit}-words`,
                             textLength: cleanContent.length
                         };
                         await this.storeEmbeddingMetadata(file.path, metadata);
@@ -137,7 +135,7 @@ export default class CombinedPlugin extends Plugin {
                     errorCount++;
                 }
 
-                // Rate limiting - adjust as needed
+                // Rate limiting
                 await new Promise(resolve => setTimeout(resolve, 200));
             }
             
@@ -155,7 +153,6 @@ export default class CombinedPlugin extends Plugin {
         }
     }
 
-    // Add this helper method to store metadata
     async storeEmbeddingMetadata(filePath: string, metadata: any): Promise<void> {
         const data = await this.loadData() || {};
         if (!data.embeddingMetadata) {
@@ -171,7 +168,6 @@ export default class CombinedPlugin extends Plugin {
             data.embeddings = {};
         }
         data.embeddings[filePath] = embedding;
-        data.settings = this.settings;
         await this.saveData(data);
     }
 
@@ -292,7 +288,7 @@ export default class CombinedPlugin extends Plugin {
         await this.app.vault.modify(file, newContent);
     }
 
-    // Combined Settings Methods
+    // Settings Methods
     async loadSettings() {
         const data = await this.loadData();
         this.settings = Object.assign({}, COMBINED_DEFAULT_SETTINGS, data?.settings || data || {});
@@ -310,39 +306,5 @@ export default class CombinedPlugin extends Plugin {
 
     onunload() {
         this.app.workspace.detachLeavesOfType(VIEW_TYPE_GRAPH);
-    }
-}
-
-class CombinedSettingTab extends PluginSettingTab {
-    plugin: CombinedPlugin;
-
-    constructor(app: App, plugin: CombinedPlugin) {
-        super(app, plugin);
-        this.plugin = plugin;
-    }
-
-    display(): void {
-        const { containerEl } = this;
-        containerEl.empty();
-
-        containerEl.createEl('h2', { text: 'Better Graph & AI Tools Settings' });
-
-        // AI Summary & Tags Settings
-        containerEl.createEl('h3', { text: 'AI Summary & Tags' });
-        
-        new Setting(containerEl)
-            .setName('OpenAI API Key')
-            .setDesc('Enter your OpenAI API key (used for both embeddings and summary/tags)')
-            .addText(text => text
-                .setPlaceholder('sk-...')
-                .setValue(this.plugin.settings.openaiApiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.openaiApiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Better Graph Settings would go here
-        containerEl.createEl('h3', { text: 'Better Graph Settings' });
-        containerEl.createEl('p', { text: 'Better Graph settings will be displayed here based on your BetterGraphSettings configuration.' });
     }
 }

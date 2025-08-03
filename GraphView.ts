@@ -1,13 +1,13 @@
 import { ItemView, WorkspaceLeaf, TFile } from 'obsidian';
-import type BetterGraphPlugin from './main';
 import { GraphRenderer } from './GraphRenderer';
 import { GraphControls } from './GraphControls';
 import { GraphNode, GraphLink } from './types';
+import CombinedPlugin from './main';
 
 export const VIEW_TYPE_GRAPH = "better-graph-view";
 
 export class BetterGraphView extends ItemView {
-    plugin: BetterGraphPlugin;
+    plugin: CombinedPlugin;
     renderer: GraphRenderer;
     controls: GraphControls;
     nodes: GraphNode[] = [];
@@ -22,7 +22,7 @@ export class BetterGraphView extends ItemView {
         searchQuery: ''
     };
 
-    constructor(leaf: WorkspaceLeaf, plugin: BetterGraphPlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: CombinedPlugin) {
         super(leaf);
         this.plugin = plugin;
     }
@@ -96,6 +96,7 @@ async loadGraphData() {
     const files = this.app.vault.getMarkdownFiles();
     const nodeMap = new Map<string, GraphNode>();
     const tagNodes = new Map<string, GraphNode>();
+    const tagConnectionCount = new Map<string, number>();
     
     // Create nodes for files
     for (const file of files) {
@@ -109,25 +110,59 @@ async loadGraphData() {
             vx: 0,
             vy: 0,
             embedding: embedding || undefined,
-            type: 'file'
+            type: 'file' as const
         });
     }
     
     // Create nodes for tags if enabled
-    if (!this.filters || this.filters.showTags) {
+    if (this.filters.showTags) {
         const allTags = new Set<string>();
         
-        // Collect all tags from files
+        // Collect all tags and count connections
         for (const file of files) {
             const cache = this.app.metadataCache.getFileCache(file);
+            
             if (cache?.tags) {
                 cache.tags.forEach(tag => {
                     allTags.add(tag.tag);
+                    tagConnectionCount.set(tag.tag, (tagConnectionCount.get(tag.tag) || 0) + 1);
                 });
+            }
+
+            if (cache?.frontmatter) {
+                const aiTags = cache.frontmatter['ai-tags'];
+                if (Array.isArray(aiTags)) {
+                    aiTags.forEach(tag => {
+                        const tagWithHash = `#${tag}`;
+                        allTags.add(tagWithHash);
+                        tagConnectionCount.set(tagWithHash, (tagConnectionCount.get(tagWithHash) || 0) + 1);
+                    });
+                } else if (typeof aiTags === 'string') {
+                    try {
+                        const parsed = JSON.parse(aiTags);
+                        if (Array.isArray(parsed)) {
+                            parsed.forEach(tag => {
+                                const tagWithHash = `#${tag}`;
+                                allTags.add(tagWithHash);
+                                tagConnectionCount.set(tagWithHash, (tagConnectionCount.get(tagWithHash) || 0) + 1);
+                            });
+                        }
+                    } catch {
+                        const tagMatches = aiTags.match(/["']([^"']+)["']/g);
+                        if (tagMatches) {
+                            tagMatches.forEach(match => {
+                                const tag = match.replace(/["']/g, '');
+                                const tagWithHash = `#${tag}`;
+                                allTags.add(tagWithHash);
+                                tagConnectionCount.set(tagWithHash, (tagConnectionCount.get(tagWithHash) || 0) + 1);
+                            });
+                        }
+                    }
+                }
             }
         }
         
-        // Create tag nodes
+        // Create tag nodes with connection count
         allTags.forEach(tag => {
             tagNodes.set(tag, {
                 id: tag,
@@ -137,14 +172,15 @@ async loadGraphData() {
                 y: 0,
                 vx: 0,
                 vy: 0,
-                type: 'tag'
+                type: 'tag' as const,
+                connectionCount: tagConnectionCount.get(tag) || 1
             });
         });
     }
     
     // Combine all nodes
     this.nodes = [...Array.from(nodeMap.values()), ...Array.from(tagNodes.values())];
-    
+    console.log('Total nodes:', this.nodes.length, 'Tag nodes:', tagNodes.size);
     // Create links
     this.links = [];
     
@@ -156,26 +192,71 @@ async loadGraphData() {
     }
     
     // Create tag links
-    if (!this.filters || this.filters.showTags) {
+    if (this.filters.showTags) {
         this.createTagLinks(files, nodeMap, tagNodes);
+        console.log('Tag links created:', this.links.filter(l => l.type === 'tag-link').length);
+    }
+
+    if (this.renderer && this.renderer.isInitialized) {
+        this.renderer.updateData(this.nodes, this.links);
     }
 }
 
 createTagLinks(files: TFile[], nodeMap: Map<string, GraphNode>, tagNodes: Map<string, GraphNode>) {
     files.forEach(file => {
         const cache = this.app.metadataCache.getFileCache(file);
-        if (cache?.tags) {
+        const fileNode = nodeMap.get(file.path);
+        
+        if (!fileNode || !cache) return;
+        
+        // Link to regular tags
+        if (cache.tags) {
             cache.tags.forEach(tag => {
                 const tagNode = tagNodes.get(tag.tag);
-                const fileNode = nodeMap.get(file.path);
-                if (tagNode && fileNode) {
-                    const linkId = `${file.path}->${tag.tag}`;
+                if (tagNode) {
                     this.links.push({
-                        source: file.path,
-                        target: tag.tag,
-                        id: linkId,
-                        type: 'tag-link',
-                        thickness: this.plugin.settings.defaultLinkThickness * 0.5
+                        source: fileNode.id,
+                        target: tagNode.id,
+                        id: `${fileNode.id}-tag-${tagNode.id}`,
+                        type: 'tag-link' as const
+                    });
+                }
+            });
+        }
+        
+        // Link to AI-generated tags
+        if (cache.frontmatter?.['ai-tags']) {
+            const aiTags = cache.frontmatter['ai-tags'];
+            
+            let tagList: string[] = [];
+            
+            if (Array.isArray(aiTags)) {
+                tagList = aiTags;
+            } else if (typeof aiTags === 'string') {
+                // Handle string format like "[\"tag1\", \"tag2\"]"
+                try {
+                    const parsed = JSON.parse(aiTags);
+                    if (Array.isArray(parsed)) {
+                        tagList = parsed;
+                    }
+                } catch {
+                    // Try regex parsing for non-JSON strings
+                    const matches = aiTags.match(/["']([^"']+)["']/g);
+                    if (matches) {
+                        tagList = matches.map(m => m.replace(/["']/g, ''));
+                    }
+                }
+            }
+            
+            tagList.forEach(tag => {
+                const tagWithHash = tag.startsWith('#') ? tag : `#${tag}`;
+                const tagNode = tagNodes.get(tagWithHash);
+                if (tagNode) {
+                    this.links.push({
+                        source: fileNode.id,
+                        target: tagNode.id,
+                        id: `${fileNode.id}-ai-tag-${tagNode.id}`,
+                        type: 'tag-link' as const
                     });
                 }
             });
@@ -242,8 +323,13 @@ createTagLinks(files: TFile[], nodeMap: Map<string, GraphNode>, tagNodes: Map<st
     }
 
     async refresh() {
+        if (!this.renderer || !this.renderer.isInitialized) {
+            console.warn('Cannot refresh: renderer not initialized');
+            return;
+        }
+        
         await this.loadGraphData();
-        this.renderer.updateData(this.nodes, this.links);
+        // No need to call updateData here since loadGraphData already does it
     }
 
     async onClose() {
