@@ -84,6 +84,18 @@ export class GraphRenderer {
             .append('path')
             .attr('fill', 'var(--text-muted)')
             .attr('d', 'M0,-5L10,0L0,5');
+
+        defs.append('marker')
+            .attr('id', 'arrow-accent')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 15)
+            .attr('refY', 0)
+            .attr('markerWidth', 4)
+            .attr('markerHeight', 4)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('fill', 'var(--interactive-accent)')
+            .attr('d', 'M0,-5L10,0L0,5');
     }
 
 private setupLinks() {
@@ -102,11 +114,11 @@ private setupLinks() {
     this.linkElements.each(function(d) {
         const group = d3.select(this);
         
-        if (d.similarity !== undefined && d.similarity > 0) {
-            // For similarity links, we'll add dots in the ticked function
+        if (d.similarity !== undefined && d.similarity > 0 && !d.type) {
+            // For similarity links (not manual links), we'll add dots in the ticked function
             group.attr('data-similarity', d.similarity);
         } else {
-            // Regular solid line
+            // Regular solid line for manual links and tag links
             group.append('line')
                 .attr('class', 'link solid-link')
                 .attr('stroke', 'var(--text-muted)')
@@ -161,6 +173,9 @@ private setupNodes() {
             .style('font-size', d => d.type === 'tag' ? '11px' : '12px')
             .style('font-weight', d => d.type === 'tag' ? '600' : 'normal');
 
+                // Add hover effects with relationship highlighting
+        // Update the hover effects in setupNodes method:
+
         // Add hover effects with relationship highlighting
         this.nodeElements.on('mouseenter', (event, hoveredNode) => {
             // Get connected nodes
@@ -186,10 +201,10 @@ private setupNodes() {
                     if (d.id === hoveredNode.id) {
                         return 'var(--text-success)'; // Green for hovered node
                     } else if (connectedNodeIds.has(d.id)) {
-                        // Keep original color for connected nodes
-                        return d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)';
+                        // Use accent color for connected file nodes, keep tag nodes as accent
+                        return d.type === 'tag' ? 'var(--text-accent)' : 'var(--interactive-accent)';
                     } else {
-                        // Same color but with reduced opacity for unrelated
+                        // Keep original color for unrelated nodes
                         return d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)';
                     }
                 })
@@ -201,20 +216,31 @@ private setupNodes() {
                     }
                 });
 
-            // Update link styling
-            this.linkElements
-                .transition()
-                .duration(200)
-                .attr('stroke-opacity', d => {
-                    const sourceId = typeof d.source === 'string' ? d.source : (d.source as any).id;
-                    const targetId = typeof d.target === 'string' ? d.target : (d.target as any).id;
-                    
-                    if (sourceId === hoveredNode.id || targetId === hoveredNode.id) {
-                        return 0.8;
-                    } else {
-                        return 0.2;
-                    }
-                });
+            // Update link styling - handle both solid lines and dots
+            this.linkElements.each(function(d: any) {
+                const group = d3.select(this);
+                const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+                const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+                const isConnected = sourceId === hoveredNode.id || targetId === hoveredNode.id;
+                
+                // Update solid lines
+                group.select('line')
+                    .transition()
+                    .duration(200)
+                    .attr('stroke', isConnected ? 'var(--interactive-accent)' : 'var(--text-muted)') // Fixed: different colors
+                    .attr('stroke-opacity', isConnected ? 0.8 : 0.2)
+                    .attr('marker-end', (d: GraphLink) => {
+                        if (d.type === 'tag-link') return null;
+                        return isConnected ? 'url(#arrow-accent)' : 'url(#arrow)';
+                    });
+                
+                // Update dots for similarity links
+                group.selectAll('circle.link-dot')
+                    .transition()
+                    .duration(200)
+                    .attr('fill', isConnected ? 'var(--interactive-accent)' : 'var(--text-muted)')
+                    .attr('opacity', isConnected ? 0.8 : 0.2);
+            });
 
             // Update text opacity
             this.nodeElements.selectAll('text')
@@ -236,10 +262,26 @@ private setupNodes() {
                 .attr('fill', (d: GraphNode) => d.type === 'tag' ? 'var(--text-accent)' : 'var(--text-muted)')
                 .attr('opacity', 1);
 
-            this.linkElements
-                .transition()
-                .duration(200)
-                .attr('stroke-opacity', 0.6);
+            // Reset link styling
+            this.linkElements.each(function() {
+                const group = d3.select(this);
+                
+                group.select('line')
+                    .transition()
+                    .duration(200)
+                    .attr('stroke', 'var(--text-muted)')
+                    .attr('stroke-opacity', 0.6)
+                    .attr('marker-end', (d: GraphLink) => {
+                        if (d.type === 'tag-link') return null;
+                        return 'url(#arrow)';
+                    });
+                
+                group.selectAll('circle.link-dot')
+                    .transition()
+                    .duration(200)
+                    .attr('fill', 'var(--text-muted)')
+                    .attr('opacity', 0.6);
+            });
 
             this.nodeElements.selectAll('text')
                 .transition()
@@ -304,15 +346,21 @@ private setupNodes() {
             const isConnected = sourceId === hoveredNode.id || targetId === hoveredNode.id;
             
             // Update solid lines
-            group.select('line')
+            group.selectAll('line')
                 .transition()
                 .duration(200)
-                .attr('stroke-opacity', isConnected ? 0.8 : 0.2);
+                .attr('stroke', isConnected ? 'var(--interactive-accent)' : 'var(--text-muted)')
+                .attr('stroke-opacity', isConnected ? 0.8 : 0.2)
+                .attr('marker-end', (d: GraphLink) => {
+                    if (d.type === 'tag-link') return null;
+                    return isConnected ? 'url(#arrow-accent)' : 'url(#arrow)';
+                });
             
             // Update dots
             group.selectAll('circle')
                 .transition()
                 .duration(200)
+                .attr('fill', isConnected ? 'var(--interactive-accent)' : 'var(--text-muted)')
                 .attr('opacity', isConnected ? 0.8 : 0.2);
         });
 
@@ -343,11 +391,13 @@ private setupNodes() {
             group.select('line')
                 .transition()
                 .duration(200)
+                .attr('stroke', 'var(--text-muted)')
                 .attr('stroke-opacity', 0.6);
             
             group.selectAll('circle')
                 .transition()
                 .duration(200)
+                .attr('fill', 'var(--text-muted)')
                 .attr('opacity', 0.6);
         });
 
@@ -619,7 +669,7 @@ private ticked() {
             // Calculate dot spacing based on similarity (distance = 1/correlation)
             const dotRadius = 1.5;
             // const spacing = Math.max(4, (1 / sim) * 15);
-            const spacing = 1 / (sim - 0.82)
+            const spacing = 1 / (sim - 0.8)
             
             // Remove old dots
             group.selectAll('circle').remove();
@@ -677,11 +727,46 @@ private ticked() {
             .style('opacity', currentZoom < threshold ? 0 : 1);
     }
 
-    updateNodeSize(size: number) {
-        this.nodeElements.selectAll('circle')
-            .attr('r', size);
-    }
+    // Add or update this method in the GraphRenderer class:
 
+updateNodeSize(size: number) {
+    // Only update file nodes, not tag nodes
+    this.nodeElements?.selectAll('circle')
+        .attr('r', (d: GraphNode) => {
+            if (d.type === 'tag' && d.connectionCount) {
+                // Keep tag size based on connections, don't change it
+                const minSize = this.plugin.settings.nodeSize * 0.8;
+                const maxSize = this.plugin.settings.nodeSize * 2;
+                const scaleFactor = Math.log(d.connectionCount + 1) / Math.log(10);
+                return Math.min(maxSize, minSize + scaleFactor * 10);
+            } else if (d.type === 'tag') {
+                // Default tag size (unchanged)
+                return this.plugin.settings.nodeSize * 0.8;
+            } else {
+                // File nodes - apply the new size
+                return size;
+            }
+        });
+    
+    // Update collision force to account for new sizes
+    if (this.simulation) {
+        (this.simulation.force('collision') as d3.ForceCollide<GraphNode>)
+            ?.radius(d => {
+                if (d.type === 'tag' && d.connectionCount) {
+                    const minSize = this.plugin.settings.nodeSize * 0.8;
+                    const maxSize = this.plugin.settings.nodeSize * 2;
+                    const scaleFactor = Math.log(d.connectionCount + 1) / Math.log(10);
+                    return Math.min(maxSize, minSize + scaleFactor * 10) + 5;
+                } else if (d.type === 'tag') {
+                    return this.plugin.settings.nodeSize * 0.8 + 5;
+                } else {
+                    return size + 5;
+                }
+            });
+        
+        this.simulation.alpha(0.3).restart();
+    }
+}
     updateLinkThickness(thickness: number) {
         this.linkElements
             .attr('stroke-width', d => d.thickness || thickness);

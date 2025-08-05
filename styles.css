@@ -1,272 +1,76 @@
-/* Graph View Container */
-.better-graph-view-container {
-    height: 100%;
-    width: 100%;
-    overflow: hidden;
-}
-
-.graph-main-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.graph-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 20px;
-    border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.graph-title h2 {
-    margin: 0;
-    font-size: 18px;
-}
-
-.graph-settings-btn {
-    cursor: pointer;
-    padding: 5px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.graph-settings-btn:hover {
-    background: var(--background-modifier-hover);
-}
-
-.graph-settings-btn.active {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
-}
-
-.graph-content-wrapper {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-}
-
-.graph-container {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-}
-
-.graph-controls-panel {
-    width: 300px;
-    border-left: 1px solid var(--background-modifier-border);
-    background: var(--background-secondary);
-    overflow-y: auto;
-}
-
-/* Graph Controls */
-.graph-controls {
-    padding: 15px;
-}
-
-.control-section {
-    margin-bottom: 15px;
-}
-
-.section-header {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    padding: 5px 0;
-    user-select: none;
-}
-
-.section-toggle {
-    margin-right: 8px;
-    color: var(--text-muted);
-}
-
-.section-title {
-    font-weight: 600;
-}
-
-.section-content {
-    padding-left: 20px;
-    padding-top: 10px;
-}
-
-/* Search */
-.search-container {
-    position: relative;
-    margin-bottom: 10px;
-}
-
-.search-input {
-    width: 100%;
-    padding: 5px 30px 5px 10px;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
-    background: var(--background-primary);
-}
-
-.search-icon {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-}
-
-/* Toggle */
-.toggle-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 8px 0;
-}
-
-.toggle {
-    width: 40px;
-    height: 22px;
-    background: var(--background-modifier-border);
-    border-radius: 11px;
-    position: relative;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.toggle.is-enabled {
-    background: var(--interactive-accent);
-}
-
-.toggle::after {
-    content: '';
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    background: white;
-    border-radius: 50%;
-    top: 2px;
-    left: 2px;
-    transition: transform 0.2s;
-}
-
-.toggle.is-enabled::after {
-    transform: translateX(18px);
-}
-
-/* Slider */
-.slider-container {
-    margin: 12px 0;
-}
-
-.slider-container label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 14px;
-}
-
-.slider-wrapper {
-    display: flex;
-    align-items: center;
-}
-
-.slider-wrapper input[type="range"] {
-    flex: 1;
-}
-
-.slider-value {
-    margin-left: 10px;
-    min-width: 40px;
-    text-align: right;
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-/* Buttons */
-.full-width {
-    width: 100%;
-    margin: 10px 0;
-}
-
-/* File count */
-.file-count {
-    margin-top: 10px;
-    font-size: 12px;
-    color: var(--text-muted);
-    text-align: center;
-}
-
-/* SVG Styles */
-.node {
-    cursor: pointer;
-}
-
-.node-label {
-    pointer-events: none;
-    font-family: var(--font-interface);
-}
-
-.links line {
-    pointer-events: none;
-}
-
-/* Add these styles for the graph */
-
+/* Better Graph View Layout */
 .better-graph-view {
     width: 100%;
     height: 100%;
     position: relative;
+    overflow: hidden;
 }
 
-.graph-svg {
+.graph-main-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    position: relative;
+}
+
+.graph-container {
+    flex: 1;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.graph-container svg {
     width: 100%;
     height: 100%;
 }
 
-/* Node styling */
-.node {
-    cursor: pointer;
-}
-
-.node circle {
-    transition: all 0.2s ease;
-}
-
-.node-label {
-    pointer-events: none;
-    user-select: none;
-    transition: opacity 0.2s ease;
-}
-
-/* Link styling */
-.link {
-    fill: none;
-    pointer-events: none;
-    transition: stroke-opacity 0.2s ease;
-}
-
-/* Tag-specific styling */
-.node.tag circle {
-    filter: brightness(1.2);
-}
-
-.node.tag .node-label {
-    font-weight: 600;
-}
-
-/* Hover states */
-.node:hover circle {
-    filter: brightness(1.3);
-}
-
-/* Arrow marker */
-#arrow {
-    opacity: 0.6;
-}
-
-/* Control panel styling to match Obsidian */
-.graph-controls {
+/* Control Panel */
+.graph-control-panel {
+    width: 300px;
+    height: 100%;
     background: var(--background-secondary);
-    padding: 10px;
+    border-left: 1px solid var(--background-modifier-border);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.control-panel-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    min-height: 48px;
+}
+
+.control-panel-icon {
+    margin-right: 8px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+}
+
+.control-panel-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.control-panel-title {
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.controls-container {
+    flex: 1;
     overflow-y: auto;
+    padding-top: 8px;
+}
+
+/* Graph Controls */
+.graph-controls {
+    padding: 10px;
     font-size: var(--font-ui-small);
 }
 
@@ -280,6 +84,7 @@
     cursor: pointer;
     padding: 4px 0;
     user-select: none;
+    margin-bottom: 4px;
 }
 
 .section-toggle {
@@ -292,11 +97,52 @@
     font-weight: 500;
 }
 
+.section-content {
+    margin-left: 20px;
+    margin-bottom: 8px;
+}
+
+/* Search */
+.search-container {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 6px 32px 6px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
+}
+
+.search-icon {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.search-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Toggle */
 .toggle-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin: 8px 0;
+}
+
+.toggle-container label {
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
 }
 
 .toggle {
@@ -329,51 +175,113 @@
     transform: translateX(14px);
 }
 
-
-/* Update the existing styles and add new ones for dotted links */
-
-/* Custom dotted link styling */
-.dotted-link circle {
-    pointer-events: none;
+/* Slider */
+.slider-container {
+    margin: 12px 0;
 }
 
-/* Tag node specific styling */
-.node.tag circle {
-    filter: brightness(1.2);
+.slider-container label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
+}
+
+.slider-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.slider-wrapper input[type="range"] {
+    flex: 1;
+}
+
+.slider-value {
+    min-width: 40px;
+    text-align: right;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+/* Buttons */
+.full-width {
+    width: 100%;
+    margin: 8px 0;
+}
+
+/* File count */
+.file-count {
+    margin-top: 12px;
+    padding: 8px;
+    background: var(--background-modifier-form-field);
+    border-radius: 4px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+/* SVG Node Styles */
+.node {
+    cursor: pointer;
+}
+
+.node circle {
     transition: all 0.2s ease;
 }
 
-/* Make sure the graph container uses full space */
-.graph-container svg {
-    width: 100%;
-    height: 100%;
+.node-label {
+    pointer-events: none;
+    user-select: none;
+    font-family: var(--font-interface);
+    transition: opacity 0.2s ease;
+    font-size: 25px;  /* Add this - increased from default 12px */
 }
 
-/* Add these styles after the existing ones */
+/* Tag-specific styling */
+.node.tag circle {
+    filter: brightness(1.2);
+}
 
-/* Link group styling */
+.node.tag .node-label {
+    font-weight: 600;
+    font-size: 16px;  /* Add this - slightly smaller than regular nodes */
+}
+
+/* Link Styles */
 .link-group {
     pointer-events: none;
 }
 
-/* Dotted link dots */
 .link-dot {
     pointer-events: none;
     transition: opacity 0.2s ease;
 }
 
-/* Solid link styling */
 .solid-link {
     fill: none;
     stroke: var(--text-muted);
     transition: stroke-opacity 0.2s ease;
+    pointer-events: none;
 }
 
-/* Remove duplicate .links and .nodes z-index rules and keep just one set */
+/* Arrow marker */
+#arrow {
+    opacity: 0.6;
+}
+
+/* Z-index layering */
 .links {
     z-index: 1;
 }
 
 .nodes {
     z-index: 2;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .graph-control-panel {
+        width: 250px;
+    }
 }
